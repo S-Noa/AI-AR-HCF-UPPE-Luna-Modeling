@@ -1,0 +1,139 @@
+\documentclass[conference,letterpaper]{IEEEtran}
+\usepackage{graphicx}
+\usepackage{amsmath}
+\usepackage{cite}
+\usepackage{dblfloatfix}
+\usepackage{url}
+\graphicspath{{figures/}}
+\newlength{\authorblockwidth}
+\setlength{\authorblockwidth}{0.38\textwidth}
+\newlength{\authorblocksep}
+\setlength{\authorblocksep}{0.10\textwidth}
+
+\title{Transformer-Based Predictive Modeling of Ultrafast Pulse Propagation in Gas-filled Antiresonant Hollow-core Fibers}
+
+\author{
+\makebox[\textwidth][c]{%
+\begin{tabular}{@{}c@{\hspace{\authorblocksep}}c@{}}
+\begin{minipage}[t]{\authorblockwidth}
+\centering
+\normalsize Meng Gu\\[-0.2ex]
+\scriptsize Sustainable Photonics Research Center\\
+Hangzhou International Innovation Institute, Beihang University\\
+Hangzhou, China\\
+\url{SPRC_Gm@buaa.edu.cn}
+\end{minipage}
+&
+\begin{minipage}[t]{\authorblockwidth}
+\centering
+\normalsize YuanHongLiu Gao\\[-0.2ex]
+\scriptsize Sustainable Photonics Research Center\\
+Hangzhou International Innovation Institute, Beihang University\\
+Hangzhou, China\\
+\url{15998183947gaoyuanhongliu@buaa.edu.cn}
+\end{minipage}
+\\[1.2ex]
+\begin{minipage}[t]{\authorblockwidth}
+\centering
+\normalsize Hao Du*\\[-0.2ex]
+\scriptsize Sustainable Photonics Research Center\\
+Hangzhou International Innovation Institute, Beihang University\\
+Hangzhou, China\\
+\url{du_hao@buaa.edu.cn}
+\end{minipage}
+&
+\begin{minipage}[t]{\authorblockwidth}
+\centering
+\normalsize Daiqi Xiong*\\[-0.2ex]
+\scriptsize Sustainable Photonics Research Center\\
+Hangzhou International Innovation Institute, Beihang University\\
+Hangzhou, China\\
+\url{xiongdaiqi@buaa.edu.cn}
+\end{minipage}
+\end{tabular}}
+}
+
+\begin{document}
+\maketitle
+
+\begin{abstract}
+Gas-filled anti-resonant hollow-core fibers provide a favorable platform for pressure-tunable nonlinear frequency conversion and coherent ultraviolet generation. Their ultrafast pulse dynamics arise from dispersion, Kerr nonlinearity. High-fidelity unidirectional pulse propagation equation simulations capture these effects but are costly for parameter scans. We develop a Transformer-based predictive model that predicts final spectra and complete spectral-evolution directly from pulse, gas, and fiber parameters. On 10,000 samples over 200--2500 nm, the model achieves test-set coefficients of determination of 0.9635 for final spectra and 0.9650 for complete evolution. The approach accelerates forward prediction and can assist in experimental design.
+\end{abstract}
+
+\begin{IEEEkeywords}
+anti-resonant hollow-core fiber, ultrafast nonlinear optics, unidirectional pulse propagation equation, Transformer, gas ionization
+\end{IEEEkeywords}
+
+\section{Introduction}
+Hollow-core fibers guide light mainly in a gas-filled core, reducing the overlap with silica and enabling high damage threshold, low material nonlinearity, and pressure-tunable dispersion. Gas-filled anti-resonant hollow-core fibers (AR-HCFs) therefore provide a controllable platform for broadband nonlinear frequency conversion because the gas pressure, core geometry, and capillary-wall thickness tune the dispersion and nonlinear response. Optical pulses in different spectral bands support different functions: ultraviolet pulses are useful for photochemical and spectroscopic applications, near-infrared pulses are widely used as femtosecond pump sources, and mid-infrared pulses provide access to molecular-fingerprint spectroscopy and long-wavelength frequency conversion \cite{mid_ir_laser}. In this regime, propagation is governed by the combined action of dispersion, Kerr nonlinearity.
+
+The generalized nonlinear Schrödinger equation (GNLSE) are commonly used to study dispersion and nonlinear effects in optical fibers. For broadband strong-field propagation in gas-filled hollow-core fibers, however, the unidirectional pulse propagation equation (UPPE) resolves broadband field evolution and strong-field effects, including plasma dynamics \cite{uppe}. C. Brahms and J. C. Travers developed Luna, an open-source project for numerical UPPE simulations in ultrafast nonlinear optics \cite{luna}. However, UPPE simulations remain costly when dense scans over pulse, gas, and fiber parameters are required. Data-driven methods have therefore become useful complements to physics-based solvers in nonlinear-fiber studies \cite{shih2023,salmela2021}.
+
+Here, a predictive model denotes a learned approximation to the UPPE forward map. The Transformer architecture uses self-attention to learn dependencies among sequence tokens and has become a standard model for long-range sequence modeling \cite{vaswani2017}. Since spectral evolution can be viewed as a sequence along the propagation coordinate, self-attention provides a natural way to model nonlocal relationships among different propagation positions without recursive rollout. We encode six physical operating parameters, combine them with propagation-position tokens, and directly regress the full spectral evolution $S(z,\lambda)$ and the final spectrum. This direct model reaches test-set $R^2=0.9635$ for final spectra and $R^2=0.9650$ for the complete evolution map.
+
+\begin{figure*}[!t]
+\centering
+\includegraphics[width=0.95\textwidth]{figure1.png}
+\caption{Schematic workflow and model-training structure. (a) Gas-cell-coupled anti-resonant hollow-core fiber driven by an input spectrum and producing a broadened output spectrum; the inset indicates the hollow-core cross-section. (b) Parameter-conditioned Transformer training flow. Six raw operating parameters are encoded and combined with propagation-position information to form $z$ tokens. A four-block Transformer encoder with multi-head self-attention, residual Add and Norm, and feed-forward sublayers produces $z$-context vectors. Wavelength conditioning and output heads generate $\hat{S}(z,\lambda)$, which is compared with the UPPE simulation target through a physics-aware loss.}
+\label{fig:workflow}
+\end{figure*}
+
+\section{Dataset and Simulation}
+The dataset consists of 10,000 AR-HCF simulations. The samples are divided randomly into 7,000 training, 1,500 validation, and 1,500 test cases. Each simulation uses a gas-filled anti-resonant hollow-core fiber driven by an ultrashort input pulse and produces a frequency-domain field evolution along the propagation distance. The machine-learning target is the normalized log-power spectral map sampled over 200--2500 nm.
+
+Figure~\ref{fig:workflow}(a) illustrates the simulated AR-HCF propagation scenario, from the input spectrum through the gas-filled fiber to the broadened output spectrum. The corresponding machine-learning inputs are six raw operating quantities: pulse energy, pulse duration, gas pressure, propagation length, core diameter, and capillary-wall thickness. The sampled ranges are 0.3--3.0 $\mu$J for pulse energy, 5--50 fs for pulse duration, 0.5--50 bar for argon pressure, 10--50 $\mu$m for core diameter, four discrete wall thicknesses of 0.08, 0.20, 0.36, and 0.65 $\mu$m, and a 50 cm propagation length.
+
+The spectral target is interpolated onto 1,000 wavelength points from 200 to 2500 nm. Each sample also stores saved propagation positions so that the model can be trained on both the final spectrum and the complete $z\times\lambda$ evolution. Here $z$ denotes the propagation coordinate along the fiber; the vertical Distance axis in Fig.~\ref{fig:prediction} is the same coordinate displayed in centimeters. Spectra are represented in normalized log-power space.
+
+\section{Transformer-Based Model}
+Figure~\ref{fig:workflow}(b) summarizes the training structure. The input feature vector is first passed through a trainable parameter encoder. In the implementation, this encoder is a neural-network module containing linear layers and a Gaussian error linear unit(GELU) activation. It maps the preprocessed training features to a latent representation with model dimension $d_{\mathrm{model}}=192$.
+
+\begin{figure*}[!t]
+\centering
+\includegraphics[width=0.95\textwidth]{figure2_prediction_comparison.png}
+\caption{Predictions for three representative samples. The rows correspond to input settings $(E,\tau,p,d,t)=(3.0~\mu\mathrm{J},8~\mathrm{fs},15~\mathrm{bar},10~\mu\mathrm{m},0.65~\mu\mathrm{m})$, $(2.5~\mu\mathrm{J},7~\mathrm{fs},45~\mathrm{bar},15~\mu\mathrm{m},0.65~\mu\mathrm{m})$, and $(2.5~\mu\mathrm{J},11~\mathrm{fs},45~\mathrm{bar},10~\mu\mathrm{m},0.65~\mu\mathrm{m})$, respectively, with a 50 cm propagation length. Each row contains the UPPE ground-truth spectral evolution, the direct Transformer prediction, and the final-spectrum comparison over 200--2500 nm. Spectral maps are plotted on a relative dB display scale, while quantitative coefficients of determination are evaluated in the normalized log-power target space.}
+\label{fig:prediction}
+\end{figure*}
+
+For each saved propagation position, a $z$ coordinate is projected into the same 192-dimensional feature space. The model then constructs a sequence of propagation-distance tokens by combining the parameter encoding, the $z$-coordinate projection, and a learned $z$-position embedding. These tokens are processed by four Transformer encoder blocks. Each block is instantiated with PyTorch's \texttt{TransformerEncoderLayer}; therefore each block contains multi-head self-attention, residual Add and Norm operations, a feed-forward network, and another residual Add and Norm operation. The self-attention uses four attention heads, so the 192-dimensional representation is split into four 48-dimensional attention subspaces and recombined after attention.
+
+The attention mechanism acts along the propagation-distance tokens. This design allows the model to learn global relationships among different propagation positions. After the Transformer encoder, each $z$-context vector is combined with a wavelength-coordinate representation obtained from a trainable wavelength projection. The concatenated $z$ context and wavelength embedding are passed to output heads that regress spectral intensity values.
+
+The wavelength range is divided into four physically motivated bands: 200--700, 700--1200, 1200--1800, and 1800--2500 nm. The first band covers the ultraviolet and short-wavelength visible region where dispersive-wave-related features are most important, the second band contains the near-infrared pump-side spectral structure, and the latter two bands separate the long-wavelength continuum tail. This partition reduces the tendency of a single global decoder to average over spectrally distinct regions. A separate band-specific output head is used for each region, and the four predicted bands are concatenated to form the complete map $\hat{S}(z,\lambda)$. The final output spectrum is the last saved propagation slice, $\hat{S}(z_{\mathrm{out}},\lambda)$.
+
+The training loss combines map-level and final-spectrum mean-squared error (MSE) terms with physics-aware weighting:
+\begin{equation}
+\mathcal{L}
+=
+\mathcal{L}_{\mathrm{map}}
++
+\mathcal{L}_{\mathrm{final}}
++
+w_{\mathrm{UV}}\mathcal{L}_{\mathrm{UV}}
++
+w_{\mathrm{early}}\mathcal{L}_{\mathrm{early}}
++
+w_{\lambda}\mathcal{L}_{\lambda\text{-grad}} .
+\end{equation}
+In this expression, $\mathcal{L}_{\mathrm{map}}$ is the MSE over the complete predicted spectral-evolution map $\hat{S}(z,\lambda)$ and is the primary objective. $\mathcal{L}_{\mathrm{final}}$ is the MSE on the last propagation slice, ensuring that the final output spectrum remains accurate. $\mathcal{L}_{\mathrm{UV}}$ applies the same MSE criterion only to the 200--700 nm region, where ultraviolet and short-wavelength features are important. $\mathcal{L}_{\mathrm{early}}$ evaluates the early propagation segment, here the first 10 cm, to emphasize rapid spectral restructuring near the fiber input. Finally, $\mathcal{L}_{\lambda\text{-grad}}$ penalizes differences between the predicted and simulated wavelength-direction gradients, helping preserve narrow spectral peaks and valleys that would otherwise be smoothed. The weights $w_{\mathrm{UV}}$, $w_{\mathrm{early}}$, and $w_{\lambda}$ control the relative strength of these auxiliary terms.
+
+\section{Results and Discussion}
+The Transformer was trained with four encoder blocks, four attention heads, learned $z$ embeddings, and $d_{\mathrm{model}}=192$. On the test set, the final-spectrum coefficient of determination is $R^2=0.9635$. The coefficient of determination over the full spectral-evolution target is $R^2=0.9650$, where the metric is computed over all saved propagation-distance and wavelength values in the normalized log-power space. Thus, the map-level score evaluates the complete $z\times\lambda$ prediction rather than only the output plane.
+
+Figure~\ref{fig:prediction} compares three UPPE trajectories with the corresponding direct Transformer predictions. The model reproduces the principal broadband evolution and the dominant output spectral structures across the fixed 200--2500 nm wavelength grid. The final-spectrum comparisons show that the network preserves the locations and relative strengths of the major spectral features.
+
+The close agreement between final-spectrum and map-level scores indicates that the model learns the propagation trajectory, not merely the final slice. Because the network emits the complete spectral-evolution in one forward pass. This is useful for rapid forward screening of operating conditions where both the final spectrum and the route by which it forms are relevant.
+
+\section{Conclusion}
+We demonstrated a Transformer-based predictive model for UPPE-based ultrafast pulse propagation in gas-filled AR-HCFs. The model predicts both final spectra and complete spectral-evolution. The approach provides a practical bridge between computationally intensive UPPE simulations and rapid exploration of operating conditions. Future work will extend the data coverage toward extrapolative regimes, compare the predictions with experimental measurements, and develop the model toward inverse design of hollow-core-fiber sources.
+
+\begin{thebibliography}{9}
+\bibitem{mid_ir_laser} J. Jiang, L. Li, H. Yang, Z. Zhou, X. Gao, K. Liu, W. Chang, and X. Yu, ``Mid-IR picosecond laser with broad wavelength tunability and high peak power,'' \emph{Chinese Optics Letters}, vol. 24, 041405, 2026.
+\bibitem{uppe} A. Couairon and A. Mysyrowicz, ``Femtosecond filamentation in transparent media,'' \emph{Physics Reports}, vol. 441, pp. 47--189, 2007.
+\bibitem{luna} C. Brahms and J. C. Travers, ``Luna.jl,'' Zenodo, 2021.
+\bibitem{shih2023} M. Shih, H. D. Nelson-Quillin, K. E. Garrett, E. J. Coyle, R. Secondo, C. K. Keyser, M. S. Mills, and E. S. Harper, ``Maximizing supercontinuum bandwidths in gas-filled hollow-core fibers using artificial neural networks,'' \emph{Journal of Applied Physics}, vol. 133, 233101, 2023.
+\bibitem{salmela2021} L. Salmela, D. Tsipinakis, M. Foi, A. Billet, J. M. Dudley, and G. Genty, ``Predicting ultrafast nonlinear dynamics in fibre optics with a recurrent neural network,'' \emph{Nature Machine Intelligence}, vol. 3, pp. 344--354, 2021.
+\bibitem{vaswani2017} A. Vaswani, N. Shazeer, N. Parmar, J. Uszkoreit, L. Jones, A. N. Gomez, L. Kaiser, and I. Polosukhin, ``Attention is all you need,'' in \emph{Advances in Neural Information Processing Systems 30}, 2017.
+\end{thebibliography}
+
+\end{document}

@@ -1,0 +1,73 @@
+# Python / Julia caches
+__pycache__/
+*.pyc
+.pytest_cache/
+.cache/
+.julia/
+*.jl.cov
+*.jl.*.cov
+*.jl.mem
+*.mem
+
+# Julia generated files
+Manifest.toml
+deps/deps.jl
+deps/build.log
+docs/build/
+
+# ML data and model artifacts
+*.h5
+*.hdf5
+*.mat
+*.npy
+*.npz
+*.pth
+*.pt
+*.joblib
+models*/
+processed_data*/
+processed_extreme*/
+training_data/
+random_samples_output/
+extreme_samples_output/
+eval_*/
+results_luna_rnn*/
+
+# Logs and temporary outputs
+*.log
+nohup.out
+*.tmp
+diag_out.txt
+comb_diagnosis.txt
+diag_report.txt
+diagnosis_report.txt
+scaler.txt
+scaler_output.txt
+summary.csv
+evaluation_output/
+evaluation_output_v*/
+Luna.jl-master/examples/simple_interface/resource/*.txt
+rnnnonlinear-master/myresults/
+
+# Office temporary files
+~$*
+
+# Large research and presentation artifacts
+*.pdf
+*.pptx
+*.docx
+*.doc
+*.xlsx
+*.png
+*.jpg
+*.jpeg
+*.svg
+*.zip
+
+# OS / editor noise
+.DS_Store
+.trae/
+.idea/
+.vscode/settings.json
+.vscode/spellright.dict
+_git2_*

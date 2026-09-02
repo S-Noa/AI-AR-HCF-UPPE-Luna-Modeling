@@ -20,16 +20,37 @@ cd Luna.jl-master
 julia --project=. -e "using Pkg; Pkg.status()"
 ```
 
+## Cloud runtime setup
+
+Use the Git-synced cloud code checkout, while keeping large legacy datasets under
+`/mnt/Luna.jl-master`.
+
+```bash
+source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
+cd "$LUNA_PROJECT"
+julia --project=. -e 'using Luna'
+```
+
+For Python training scripts on the cloud, use the same environment script so
+PyTorch can find the Corex CUDA runtime:
+
+```bash
+source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
+cd "$LUNA_PROJECT/examples/simple_interface"
+python3 train_mlp.py --help
+```
+
 ## Visualize all extreme samples with z zooms
 
 ```bash
-cd /mnt/Luna.jl-master/Luna.jl-master/examples/simple_interface
+source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
+cd "$LUNA_PROJECT/examples/simple_interface"
 
-nohup julia --project=../.. visualize_hdf5.jl \
+nohup julia --project="$LUNA_PROJECT" visualize_hdf5.jl \
   --extreme-samples \
   --all \
-  --data-dir ../../extreme_search_t650_all_runnable \
-  --output-dir extreme_samples_output/all_zzooms \
+  --data-dir "$LUNA_LEGACY_DATA_ROOT/extreme_search_t650_all_runnable" \
+  --output-dir "$LUNA_LEGACY_DATA_ROOT/extreme_samples_output/all_zzooms" \
   --z-zooms-cm 50 10 5 1 \
   --skip-highres-rerun \
   > visualize_extreme_all_zzooms.log 2>&1 &
@@ -38,11 +59,12 @@ nohup julia --project=../.. visualize_hdf5.jl \
 ## Transformer temporal fine-tuning example
 
 ```bash
-cd /mnt/Luna.jl-master/Luna.jl-master/examples/simple_interface
+source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
+cd "$LUNA_PROJECT/examples/simple_interface"
 
 python3 train_mlp.py \
-  --input-dir processed_data_t650_v7 \
-  --output-dir models_t650_transformer_temporal_finetune_v4 \
+  --input-dir "$LUNA_LEGACY_DATA_ROOT/processed_data_t650_v7" \
+  --output-dir "$LUNA_LEGACY_DATA_ROOT/models_t650_transformer_temporal_finetune_v4" \
   --model transformer \
   --transformer-mode temporal \
   --transformer-d-model 192 \
@@ -50,7 +72,7 @@ python3 train_mlp.py \
   --transformer-layers 4 \
   --transformer-use-z-embedding \
   --transformer-band-boundaries-nm 200 700 1200 1800 2500 \
-  --finetune-from models_t650_transformer_temporal_v3/best_val_r2_model.pth \
+  --finetune-from "$LUNA_LEGACY_DATA_ROOT/models_t650_transformer_temporal_v3/best_val_r2_model.pth" \
   --learning-rate 5e-5 \
   --epochs 100 \
   --batch-size 4 \

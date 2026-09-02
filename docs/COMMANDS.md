@@ -120,15 +120,33 @@ python3 train_luna_rnn.py \
 ## t0p6 early-dense preprocessing for RNN baseline
 
 Use relative-intensity targets for this baseline so it remains comparable with
-the existing normalized-shape RNN/Transformer/CNN experiments.
+the existing normalized-shape RNN/Transformer/CNN experiments. The raw
+early-dense directory contains two z grids, so preprocess only the filtered
+`z_len=1401` symlink directory.
 
 ```bash
 source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
 cd "$LUNA_PROJECT/examples/simple_interface"
 
+python3 - <<'PY'
+import csv, os
+manifest = '/mnt/Luna.jl-master/earlydense_manifests/t0p6_earlydense_zlen_manifest.csv'
+links = '/mnt/Luna.jl-master/training_data_ar_t0p6_earlydense_z1401_links'
+os.makedirs(links, exist_ok=True)
+count = 0
+with open(manifest, newline='') as fh:
+    for row in csv.DictReader(fh):
+        if row['z_len'] == '1401' and row['early_dense_saveN'] == '1001' and row['early_dense_zmax_cm'] == '10.0':
+            dst = os.path.join(links, row['filename'])
+            if not os.path.exists(dst):
+                os.symlink(row['path'], dst)
+            count += 1
+print(f'z1401 links: {count}')
+PY
+
 nohup python3 data_preprocessing.py \
-  --input-dir "$LUNA_LEGACY_DATA_ROOT/training_data_ar_t0p6_nochirp" \
-  --output-dir "$LUNA_LEGACY_DATA_ROOT/processed_t0p6_earlydense_v1" \
+  --input-dir "$LUNA_LEGACY_DATA_ROOT/training_data_ar_t0p6_earlydense_z1401_links" \
+  --output-dir "$LUNA_LEGACY_DATA_ROOT/processed_t0p6_earlydense_z1401_v1" \
   --sample-filter earlydense \
   --single-thickness-mode \
   --thickness 0.65 \
@@ -137,15 +155,15 @@ nohup python3 data_preprocessing.py \
   --test-size 0.15 \
   --val-size 0.15 \
   --batch-size 16 \
-  > "$LUNA_LEGACY_DATA_ROOT/preprocess_t0p6_earlydense_v1.log" 2>&1 &
+  > "$LUNA_LEGACY_DATA_ROOT/preprocess_t0p6_earlydense_z1401_v1.log" 2>&1 &
 
-tail -f "$LUNA_LEGACY_DATA_ROOT/preprocess_t0p6_earlydense_v1.log"
+tail -f "$LUNA_LEGACY_DATA_ROOT/preprocess_t0p6_earlydense_z1401_v1.log"
 ```
 
 ## Export t0p6 early-dense data for Luna RNN
 
 Run this only after preprocessing has completed and
-`processed_t0p6_earlydense_v1/processing_params.json` exists.
+`processed_t0p6_earlydense_z1401_v1/processing_params.json` exists.
 
 ```bash
 source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
@@ -153,15 +171,15 @@ mkdir -p "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/simulations"
 cd "$AI_AR_HCF_REPO/rnnnonlinear-master/rnnnonlinear-master"
 
 nohup python3 prepare_luna_data.py \
-  --input-dir "$LUNA_LEGACY_DATA_ROOT/processed_t0p6_earlydense_v1" \
-  --output "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/simulations/luna_t0p6_earlydense_conditional.mat" \
+  --input-dir "$LUNA_LEGACY_DATA_ROOT/processed_t0p6_earlydense_z1401_v1" \
+  --output "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/simulations/luna_t0p6_earlydense_z1401_conditional.mat" \
   --output-format hdf5 \
   --compression gzip \
   --include-features \
-  --log-file "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/prepare_t0p6_earlydense_conditional.log" \
-  > "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/prepare_t0p6_earlydense_conditional.nohup.log" 2>&1 &
+  --log-file "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/prepare_t0p6_earlydense_z1401_conditional.log" \
+  > "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/prepare_t0p6_earlydense_z1401_conditional.nohup.log" 2>&1 &
 
-tail -f "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/prepare_t0p6_earlydense_conditional.log"
+tail -f "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/prepare_t0p6_earlydense_z1401_conditional.log"
 ```
 
 ## t0p6 early-dense Luna RNN smoke test
@@ -171,8 +189,8 @@ source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
 cd "$AI_AR_HCF_REPO/rnnnonlinear-master/rnnnonlinear-master"
 
 python3 train_luna_rnn.py \
-  --data "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/simulations/luna_t0p6_earlydense_conditional.mat" \
-  --output-dir "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_smoke_legacy" \
+  --data "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/simulations/luna_t0p6_earlydense_z1401_conditional.mat" \
+  --output-dir "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_smoke_legacy_z1401" \
   --training-mode open_source_legacy \
   --conditioning none \
   --window-size 10 \
@@ -185,7 +203,7 @@ python3 train_luna_rnn.py \
   --eval-autoregressive-every 1 \
   --eval-autoregressive-samples 16 \
   --autoregressive-eval-batch-size 8 \
-  --log-file "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_smoke_legacy/train.log"
+  --log-file "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_smoke_legacy_z1401/train.log"
 ```
 
 ## t0p6 early-dense Luna RNN baselines
@@ -195,8 +213,8 @@ source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
 cd "$AI_AR_HCF_REPO/rnnnonlinear-master/rnnnonlinear-master"
 
 nohup python3 train_luna_rnn.py \
-  --data "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/simulations/luna_t0p6_earlydense_conditional.mat" \
-  --output-dir "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_legacy_baseline_v1" \
+  --data "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/simulations/luna_t0p6_earlydense_z1401_conditional.mat" \
+  --output-dir "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_legacy_baseline_z1401_v1" \
   --training-mode open_source_legacy \
   --conditioning none \
   --window-size 10 \
@@ -208,12 +226,12 @@ nohup python3 train_luna_rnn.py \
   --eval-autoregressive-samples 64 \
   --autoregressive-eval-batch-size 8 \
   --checkpoint-every 1 \
-  --log-file "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_legacy_baseline_v1/train.log" \
-  > "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_legacy_baseline_v1.nohup.log" 2>&1 &
+  --log-file "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_legacy_baseline_z1401_v1/train.log" \
+  > "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_legacy_baseline_z1401_v1.nohup.log" 2>&1 &
 
 nohup python3 train_luna_rnn.py \
-  --data "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/simulations/luna_t0p6_earlydense_conditional.mat" \
-  --output-dir "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_features_z_v1" \
+  --data "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/simulations/luna_t0p6_earlydense_z1401_conditional.mat" \
+  --output-dir "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_features_z_z1401_v1" \
   --training-mode conditional_legacy \
   --conditioning features_z \
   --window-size 10 \
@@ -225,6 +243,6 @@ nohup python3 train_luna_rnn.py \
   --eval-autoregressive-samples 64 \
   --autoregressive-eval-batch-size 8 \
   --checkpoint-every 1 \
-  --log-file "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_features_z_v1/train.log" \
-  > "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_features_z_v1.nohup.log" 2>&1 &
+  --log-file "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_features_z_z1401_v1/train.log" \
+  > "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_features_z_z1401_v1.nohup.log" 2>&1 &
 ```

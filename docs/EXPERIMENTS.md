@@ -28,15 +28,17 @@ Use this file as the lightweight memory for model and data experiments. Keep eac
 
 - Goal: test whether denser early-z sampling improves Luna RNN one-step and autoregressive propagation baselines.
 - Source data: `7792` early-dense HDF5 samples in `/mnt/Luna.jl-master/training_data_ar_t0p6_nochirp`.
-- Preprocessing target: `/mnt/Luna.jl-master/processed_t0p6_earlydense_v1`, using `sample-filter=earlydense`, `target-points=1000`, and `per_sample_minmax`.
-- RNN export target: `/mnt/Luna.jl-master/rnn_earlydense/simulations/luna_t0p6_earlydense_conditional.mat`.
+- Z-grid audit: `7780` files are the main `z_len=1401` / first-10-cm dense grid; `12` files are older `z_len=696` / first-0.5-cm dense grid. Do not mix both in one temporal dataset.
+- Filter input: symlink directory `/mnt/Luna.jl-master/training_data_ar_t0p6_earlydense_z1401_links` with only the `7780` consistent samples.
+- Preprocessing target: `/mnt/Luna.jl-master/processed_t0p6_earlydense_z1401_v1`, using `sample-filter=earlydense`, `target-points=1000`, and `per_sample_minmax`.
+- RNN export target: `/mnt/Luna.jl-master/rnn_earlydense/simulations/luna_t0p6_earlydense_z1401_conditional.mat`.
 - Planned comparisons: `open_source_legacy` with no conditioning versus `conditional_legacy` with `features_z`.
 - Key metrics: `stepwise_r2`, `autoregressive_r2`, final autoregressive spectrum quality, and temporal evolution plots.
 
 ## Early-dense data
 
 - Goal: improve early propagation details in the first centimeters.
-- Status: t0p6 cloud source data is available for preprocessing; do not treat it as a completed ML dataset until processed arrays are generated and checked.
+- Status: t0p6 cloud source data is available. The main usable subset for current RNN baselines is the `z_len=1401` set; the mixed raw early-dense directory should not be used directly for temporal preprocessing.
 - Follow-up: use the processed early-dense data for Luna RNN baseline first, then retrain or fine-tune Transformer/CNN.
 
 ## Global-log / absolute-intensity modeling

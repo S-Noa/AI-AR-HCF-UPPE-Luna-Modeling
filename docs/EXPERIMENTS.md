@@ -24,11 +24,20 @@ Use this file as the lightweight memory for model and data experiments. Keep eac
 - Earlier result: stepwise high, autoregressive failed, indicating error accumulation and missing conditioning.
 - Follow-up modes: `open_source_legacy`, `conditional_legacy`, and `rollout_robust`.
 
+## t0p6 early-dense RNN baseline
+
+- Goal: test whether denser early-z sampling improves Luna RNN one-step and autoregressive propagation baselines.
+- Source data: `7792` early-dense HDF5 samples in `/mnt/Luna.jl-master/training_data_ar_t0p6_nochirp`.
+- Preprocessing target: `/mnt/Luna.jl-master/processed_t0p6_earlydense_v1`, using `sample-filter=earlydense`, `target-points=1000`, and `per_sample_minmax`.
+- RNN export target: `/mnt/Luna.jl-master/rnn_earlydense/simulations/luna_t0p6_earlydense_conditional.mat`.
+- Planned comparisons: `open_source_legacy` with no conditioning versus `conditional_legacy` with `features_z`.
+- Key metrics: `stepwise_r2`, `autoregressive_r2`, final autoregressive spectrum quality, and temporal evolution plots.
+
 ## Early-dense data
 
 - Goal: improve early propagation details in the first centimeters.
-- Status: generation was in progress during the latest planning discussion.
-- Follow-up: reprocess and retrain Transformer/CNN/RNN baselines when available.
+- Status: t0p6 cloud source data is available for preprocessing; do not treat it as a completed ML dataset until processed arrays are generated and checked.
+- Follow-up: use the processed early-dense data for Luna RNN baseline first, then retrain or fine-tune Transformer/CNN.
 
 ## Global-log / absolute-intensity modeling
 

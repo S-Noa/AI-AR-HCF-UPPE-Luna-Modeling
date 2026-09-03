@@ -246,3 +246,55 @@ nohup python3 train_luna_rnn.py \
   --log-file "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_features_z_z1401_v1/train.log" \
   > "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_features_z_z1401_v1.nohup.log" 2>&1 &
 ```
+
+## t0p6 early-dense scheduled-sampling RNN
+
+Use this after the `conditional_legacy` one-step comparison shows high
+stepwise accuracy but unstable autoregressive rollout.
+
+```bash
+source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
+cd "$AI_AR_HCF_REPO/rnnnonlinear-master/rnnnonlinear-master"
+
+python3 train_luna_rnn.py \
+  --data "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/simulations/luna_t0p6_earlydense_z1401_conditional.mat" \
+  --output-dir "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_smoke_features_z_scheduled_z1401" \
+  --training-mode scheduled_sampling \
+  --conditioning features_z \
+  --rollout-steps 50 \
+  --scheduled-sampling-start 0.0 \
+  --scheduled-sampling-end 0.5 \
+  --window-size 10 \
+  --hidden 250 \
+  --learning-rate 1e-4 \
+  --epochs 2 \
+  --batch-size 16 \
+  --train-evolutions 200 \
+  --test-evolutions 50 \
+  --eval-autoregressive-every 1 \
+  --eval-autoregressive-samples 16 \
+  --autoregressive-eval-batch-size 8 \
+  --log-file "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_smoke_features_z_scheduled_z1401/train.log"
+
+nohup python3 train_luna_rnn.py \
+  --data "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/simulations/luna_t0p6_earlydense_z1401_conditional.mat" \
+  --output-dir "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_features_z_scheduled_z1401_v1" \
+  --training-mode scheduled_sampling \
+  --conditioning features_z \
+  --rollout-steps 50 \
+  --scheduled-sampling-start 0.0 \
+  --scheduled-sampling-end 0.5 \
+  --window-size 10 \
+  --hidden 250 \
+  --learning-rate 1e-4 \
+  --epochs 80 \
+  --batch-size 16 \
+  --eval-autoregressive-every 2 \
+  --eval-autoregressive-samples 64 \
+  --autoregressive-eval-batch-size 8 \
+  --checkpoint-every 1 \
+  --log-file "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_features_z_scheduled_z1401_v1/train.log" \
+  > "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_features_z_scheduled_z1401_v1.nohup.log" 2>&1 &
+
+tail -f "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_features_z_scheduled_z1401_v1/train.log"
+```

@@ -1,6 +1,6 @@
 # Project state
 
-Last updated: 2026-09-02
+Last updated: 2026-09-03
 
 ## Current objective
 
@@ -24,6 +24,10 @@ Prepare the project for reliable continued development while preserving the curr
 - Cloud t0p6 early-dense source data: `7792` `*_earlydense.h5` samples under `/mnt/Luna.jl-master/training_data_ar_t0p6_nochirp`.
 - Early-dense z-grid audit: `7780` files have `z_len=1401`, `early_dense_saveN=1001`, and `early_dense_zmax_cm=10.0`; `12` files have the older `z_len=696`, `early_dense_saveN=201`, and `early_dense_zmax_cm=0.5`.
 - RNN early-dense preprocessing should use the symlink filter directory `/mnt/Luna.jl-master/training_data_ar_t0p6_earlydense_z1401_links`, not the mixed source directory.
+- t0p6 early-dense z1401 preprocessing completed: `/mnt/Luna.jl-master/processed_t0p6_earlydense_z1401_v1`, with `Train=5446`, `Val=1167`, `Test=1167`, and `y_temporal=(N, 1401, 1000)`.
+- RNN z1401 export completed: `/mnt/Luna.jl-master/rnn_earlydense/simulations/luna_t0p6_earlydense_z1401_conditional.mat`.
+- `open_source_legacy` z1401 training is running as the pure one-step baseline; the `conditional_legacy` one-step run was stopped after showing high stepwise R2 but unstable autoregressive R2.
+- `features_z + scheduled_sampling` z1401 training is running to target autoregressive drift.
 
 ## Active manuscript and presentation files
 
@@ -38,8 +42,8 @@ Binary presentation and submission files are intentionally not tracked in normal
 
 ## Next candidates
 
-1. Monitor preprocessing of the consistent t0p6 early-dense subset into `/mnt/Luna.jl-master/processed_t0p6_earlydense_z1401_v1`.
-2. Export the processed temporal maps to `/mnt/Luna.jl-master/rnn_earlydense/simulations/luna_t0p6_earlydense_z1401_conditional.mat`.
-3. Run Luna RNN smoke test, then compare `open_source_legacy` and `conditional_legacy` baselines on the `z_len=1401` subset.
+1. Monitor `open_source_legacy` and `features_z_scheduled_z1401_v1` training logs.
+2. Compare `stepwise_r2`, `autoregressive_r2`, and `autoregressive_final_r2` after enough epochs.
+3. If scheduled sampling still fails, test rollout loss or a downsampled early-10-cm diagnostic task.
 4. Compare temporal CNN and temporal Transformer under the same early-dense and temporal-selection metrics.
 5. Start forward-surrogate-based inverse design before training a standalone inverse model.

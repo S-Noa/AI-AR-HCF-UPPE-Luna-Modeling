@@ -58,6 +58,8 @@ def parse_args():
     parser.add_argument("--test-evolutions", type=int, default=None,
                         help="Optional explicit number of test evolutions, matching RNNnonlinear test_evo")
     parser.add_argument("--output-activation", choices=["sigmoid", "identity"], default="sigmoid")
+    parser.add_argument("--prediction-target", choices=["direct", "residual"], default="direct",
+                        help="direct predicts S(z+1); residual predicts Delta S added to the current spectrum")
     parser.add_argument("--conditioning", choices=["auto", "none", "features", "z", "features_z"], default="auto",
                         help="Condition LSTM inputs on exported sample features and/or normalized z")
     parser.add_argument("--init-from", default=None,
@@ -81,8 +83,16 @@ def parse_args():
     )
     parser.add_argument("--rollout-steps", type=int, default=20,
                         help="Number of consecutive predicted steps for recursive training")
+    parser.add_argument("--rollout-steps-start", type=int, default=None,
+                        help="Optional curriculum start horizon for recursive training")
+    parser.add_argument("--rollout-steps-end", type=int, default=None,
+                        help="Optional curriculum final horizon for recursive training")
     parser.add_argument("--rollout-loss-weight", type=float, default=1.0,
                         help="Extra rollout-loss weight used in --training-mode rollout")
+    parser.add_argument("--rollout-start-mode", choices=["random", "zero", "mixed"], default="random",
+                        help="Where recursive training rollouts start along z")
+    parser.add_argument("--zero-start-prob", type=float, default=0.5,
+                        help="Probability of z=0 starts when --rollout-start-mode=mixed")
     parser.add_argument("--scheduled-sampling-start", type=float, default=0.0,
                         help="Initial probability of feeding a detached model prediction back into the input window")
     parser.add_argument("--scheduled-sampling-end", type=float, default=0.5,
@@ -97,6 +107,10 @@ def parse_args():
                         help="Batch size for autoregressive validation and final rollout")
     parser.add_argument("--checkpoint-every", type=int, default=5,
                         help="Save latest training state and JSON progress every N epochs")
+    parser.add_argument("--early-stop-on-autoreg", action="store_true",
+                        help="Stop when periodic autoregressive R2 has not improved for --autoreg-patience evals")
+    parser.add_argument("--autoreg-patience", type=int, default=8,
+                        help="Number of autoregressive evaluations without improvement before early stopping")
     return parser.parse_args()
 
 
@@ -375,7 +389,44 @@ def global_r2(y_true, y_pred, eps=1e-12):
     return float(1.0 - ss_res / (ss_tot + eps))
 
 
-def evaluate_stepwise(model, loader, device, return_predictions=False):
+def decode_next_spectrum(model, current_window, prediction_target):
+    """Decode the next spectrum using direct or residual prediction."""
+    raw = model(current_window)
+    if prediction_target == "direct":
+        return raw
+    if prediction_target == "residual":
+        current_spectrum = current_window[:, -1, :model.n_grid]
+        return torch.clamp(current_spectrum + raw, 0.0, 1.0)
+    raise ValueError(f"Unsupported prediction target: {prediction_target}")
+
+
+def curriculum_rollout_steps(args, epoch):
+    """Return the rollout horizon for the current epoch."""
+    start = args.rollout_steps_start
+    end = args.rollout_steps_end
+    if start is None and end is None:
+        return int(args.rollout_steps)
+    if start is None:
+        start = args.rollout_steps
+    if end is None:
+        end = args.rollout_steps
+    if args.epochs <= 1:
+        return int(end)
+    progress = epoch / max(args.epochs - 1, 1)
+    return int(round(start + progress * (end - start)))
+
+
+def choose_rollout_start(n_steps, horizon, rollout_start_mode, zero_start_prob):
+    """Choose a rollout start index for recursive training."""
+    max_start = max(0, n_steps - horizon - 1)
+    if rollout_start_mode == "zero":
+        return 0
+    if rollout_start_mode == "mixed" and random.random() < zero_start_prob:
+        return 0
+    return random.randint(0, max_start)
+
+
+def evaluate_stepwise(model, loader, device, return_predictions=False, prediction_target="direct"):
     model.eval()
     preds = [] if return_predictions else None
     targets = [] if return_predictions else None
@@ -388,7 +439,7 @@ def evaluate_stepwise(model, loader, device, return_predictions=False):
         for x, y in loader:
             x = x.to(device)
             y = y.to(device)
-            pred = model(x)
+            pred = decode_next_spectrum(model, x, prediction_target)
             error = pred - y
             count += y.numel()
             true_sum += float(torch.sum(y).cpu())
@@ -406,7 +457,8 @@ def evaluate_stepwise(model, loader, device, return_predictions=False):
 
 def predict_autoregressive(model, data_test, window_size, device,
                            batch_size=16, max_evolutions=None, return_predictions=False,
-                           features_test=None, z_norm=None, use_features=False, use_z=False):
+                           features_test=None, z_norm=None, use_features=False, use_z=False,
+                           prediction_target="direct"):
     """Roll out complete propagation trajectories from each initial spectrum."""
     model.eval()
     if max_evolutions is not None:
@@ -435,7 +487,7 @@ def predict_autoregressive(model, data_test, window_size, device,
             z_window = z_tensor[:1].repeat(window_size) if use_z else None
             current = concat_condition_torch(initial_spectrum, feature=feature_batch, z_values=z_window)
             for step in range(evo_size):
-                pred = model(current)
+                pred = decode_next_spectrum(model, current, prediction_target)
                 target = batch[:, :, step + 1]
                 error = pred - target
                 count += target.numel()
@@ -485,7 +537,9 @@ def build_rollout_window(sequence, start_step, window_size, feature=None, z_norm
 
 def train_recursive_epoch(model, loader, optimizer, loss_fn, device, mode,
                           rollout_steps, feedback_probability, rollout_loss_weight,
-                          z_norm=None, use_features=False, use_z=False):
+                          z_norm=None, use_features=False, use_z=False,
+                          prediction_target="direct", rollout_start_mode="random",
+                          zero_start_prob=0.5):
     """Train on short recursive trajectories with scheduled feedback."""
     model.train()
     total_loss_sum = 0.0
@@ -505,8 +559,7 @@ def train_recursive_epoch(model, loader, optimizer, loss_fn, device, mode,
         sequence = sequence.to(device)
         n_steps = sequence.size(1)
         horizon = min(int(rollout_steps), n_steps - 1)
-        max_start = n_steps - horizon - 1
-        start_step = random.randint(0, max(0, max_start))
+        start_step = choose_rollout_start(n_steps, horizon, rollout_start_mode, zero_start_prob)
         current = build_rollout_window(
             sequence, start_step, model_window_size(model),
             feature=feature, z_norm=z_tensor,
@@ -516,7 +569,7 @@ def train_recursive_epoch(model, loader, optimizer, loss_fn, device, mode,
         predictions = []
         targets = []
         for step in range(horizon):
-            pred = model(current)
+            pred = decode_next_spectrum(model, current, prediction_target)
             target = sequence[:, start_step + step + 1, :]
             predictions.append(pred)
             targets.append(target)
@@ -580,13 +633,24 @@ def main():
 
     if args.rollout_steps < 1:
         raise ValueError("--rollout-steps must be at least 1")
+    if args.rollout_steps_start is not None and args.rollout_steps_start < 1:
+        raise ValueError("--rollout-steps-start must be at least 1")
+    if args.rollout_steps_end is not None and args.rollout_steps_end < 1:
+        raise ValueError("--rollout-steps-end must be at least 1")
     if not 0.0 <= args.scheduled_sampling_start <= 1.0:
         raise ValueError("--scheduled-sampling-start must be within [0, 1]")
     if not 0.0 <= args.scheduled_sampling_end <= 1.0:
         raise ValueError("--scheduled-sampling-end must be within [0, 1]")
+    if not 0.0 <= args.zero_start_prob <= 1.0:
+        raise ValueError("--zero-start-prob must be within [0, 1]")
+    if args.autoreg_patience < 1:
+        raise ValueError("--autoreg-patience must be at least 1")
+    if args.prediction_target == "residual" and args.output_activation != "identity":
+        raise ValueError("--prediction-target residual requires --output-activation identity")
     logging.info(
-        "Requested training mode: %s | preset: %s | resolved mode: %s | conditioning: %s",
-        args.requested_training_mode, args.training_preset, args.training_mode, args.conditioning
+        "Requested training mode: %s | preset: %s | resolved mode: %s | conditioning: %s | prediction_target: %s",
+        args.requested_training_mode, args.training_preset, args.training_mode, args.conditioning,
+        args.prediction_target
     )
 
     logging.info("Loading data: %s", args.data)
@@ -696,6 +760,8 @@ def main():
     best_autoregressive_state = None
     best_stepwise_epoch = 0
     best_autoregressive_epoch = 0
+    autoreg_no_improve_evals = 0
+    stopped_early = False
     config = vars(args).copy()
     config.update({
         "data_shape": list(data.shape),
@@ -722,7 +788,7 @@ def main():
                 x = x.to(device)
                 y = y.to(device)
                 optimizer.zero_grad()
-                pred = model(x)
+                pred = decode_next_spectrum(model, x, args.prediction_target)
                 loss = loss_fn(pred, y)
                 loss.backward()
                 optimizer.step()
@@ -743,16 +809,25 @@ def main():
                 )
             else:
                 feedback_probability = 1.0
+            current_rollout_steps = curriculum_rollout_steps(args, epoch)
             train_summary = train_recursive_epoch(
                 model, rollout_loader, optimizer, loss_fn, device,
-                args.training_mode, args.rollout_steps,
+                args.training_mode, current_rollout_steps,
                 feedback_probability, args.rollout_loss_weight,
                 z_norm=z_norm,
                 use_features=use_features,
-                use_z=use_z
+                use_z=use_z,
+                prediction_target=args.prediction_target,
+                rollout_start_mode=args.rollout_start_mode,
+                zero_start_prob=args.zero_start_prob,
             )
+        if args.training_mode == "one_step":
+            current_rollout_steps = 0
 
-        stepwise = evaluate_stepwise(model, test_loader, device, return_predictions=False)
+        stepwise = evaluate_stepwise(
+            model, test_loader, device, return_predictions=False,
+            prediction_target=args.prediction_target
+        )
         run_autoregressive_eval = (
             args.eval_autoregressive_every > 0
             and ((epoch + 1) % args.eval_autoregressive_every == 0 or epoch == 0 or epoch == args.epochs - 1)
@@ -767,7 +842,8 @@ def main():
                 features_test=features_test,
                 z_norm=z_norm,
                 use_features=use_features,
-                use_z=use_z
+                use_z=use_z,
+                prediction_target=args.prediction_target
             )
 
         elapsed = time.time() - start
@@ -780,6 +856,7 @@ def main():
             "train_one_step_mse": train_summary["one_step_mse"],
             "train_rollout_mse": train_summary["rollout_mse"],
             "feedback_probability": train_summary["feedback_probability"],
+            "current_rollout_steps": int(current_rollout_steps),
             "test_stepwise_mse": stepwise["mse"],
             "test_stepwise_r2": stepwise["r2"],
             "test_autoregressive_mse": autoregressive["mse"] if autoregressive else None,
@@ -797,11 +874,15 @@ def main():
             best_stepwise_state = copy.deepcopy(model.state_dict())
             best_stepwise_epoch = epoch + 1
             torch.save(best_stepwise_state, os.path.join(args.output_dir, "best_stepwise_model.pth"))
-        if autoregressive and np.isfinite(autoregressive["r2"]) and autoregressive["r2"] > best_autoregressive_r2:
-            best_autoregressive_r2 = autoregressive["r2"]
-            best_autoregressive_state = copy.deepcopy(model.state_dict())
-            best_autoregressive_epoch = epoch + 1
-            torch.save(best_autoregressive_state, os.path.join(args.output_dir, "best_autoregressive_model.pth"))
+        if autoregressive and np.isfinite(autoregressive["r2"]):
+            if autoregressive["r2"] > best_autoregressive_r2:
+                best_autoregressive_r2 = autoregressive["r2"]
+                best_autoregressive_state = copy.deepcopy(model.state_dict())
+                best_autoregressive_epoch = epoch + 1
+                autoreg_no_improve_evals = 0
+                torch.save(best_autoregressive_state, os.path.join(args.output_dir, "best_autoregressive_model.pth"))
+            else:
+                autoreg_no_improve_evals += 1
 
         append_jsonl(history_jsonl_path, row)
         write_json_atomic(history_path, history)
@@ -812,6 +893,7 @@ def main():
             "best_stepwise_epoch": best_stepwise_epoch,
             "best_autoregressive_r2": best_autoregressive_r2 if best_autoregressive_state is not None else None,
             "best_autoregressive_epoch": best_autoregressive_epoch,
+            "autoreg_no_improve_evals": autoreg_no_improve_evals,
             "latest": row,
         }
         write_json_atomic(latest_metrics_path, latest_metrics)
@@ -829,6 +911,7 @@ def main():
                 "best_stepwise_epoch": best_stepwise_epoch,
                 "best_autoregressive_r2": best_autoregressive_r2,
                 "best_autoregressive_epoch": best_autoregressive_epoch,
+                "autoreg_no_improve_evals": autoreg_no_improve_evals,
                 "args": config,
             }, latest_state_path)
 
@@ -841,12 +924,24 @@ def main():
                 )
             logging.info(
                 "Epoch %d/%d | mode=%s | train_mse=%.6g | one_step=%.6g | rollout=%.6g | "
-                "feedback=%.3f | stepwise_r2=%.6f%s | lr=%.3g | elapsed=%.1fs | eta=%.1fs",
+                "rollout_steps=%d | feedback=%.3f | stepwise_r2=%.6f%s | lr=%.3g | elapsed=%.1fs | eta=%.1fs",
                 epoch + 1, args.epochs, args.training_mode,
                 row["train_mse"], row["train_one_step_mse"], row["train_rollout_mse"],
-                row["feedback_probability"], row["test_stepwise_r2"], autoreg_msg,
+                row["current_rollout_steps"], row["feedback_probability"], row["test_stepwise_r2"], autoreg_msg,
                 row["learning_rate"], row["elapsed_sec"], row["eta_sec"]
             )
+        if (
+            args.early_stop_on_autoreg
+            and autoregressive
+            and best_autoregressive_state is not None
+            and autoreg_no_improve_evals >= args.autoreg_patience
+        ):
+            stopped_early = True
+            logging.info(
+                "Early stopping after %d autoregressive evals without improvement; best epoch=%d best_autoreg_r2=%.6f",
+                autoreg_no_improve_evals, best_autoregressive_epoch, best_autoregressive_r2
+            )
+            break
 
     if best_autoregressive_state is not None:
         model.load_state_dict(best_autoregressive_state)
@@ -859,7 +954,10 @@ def main():
     logging.info("Restored %s checkpoint from epoch %d for final evaluation", selected_model, selected_epoch)
 
     logging.info("Running final full-test stepwise evaluation")
-    stepwise = evaluate_stepwise(model, final_test_loader, device, return_predictions=True)
+    stepwise = evaluate_stepwise(
+        model, final_test_loader, device, return_predictions=True,
+        prediction_target=args.prediction_target
+    )
     logging.info("Running autoregressive evaluation")
     autoreg = predict_autoregressive(
         model, data_test, args.window_size, device,
@@ -868,7 +966,8 @@ def main():
         features_test=features_test,
         z_norm=z_norm,
         use_features=use_features,
-        use_z=use_z
+        use_z=use_z,
+        prediction_target=args.prediction_target
     )
     metrics = {
         "data": args.data,
@@ -885,10 +984,18 @@ def main():
         "requested_training_mode": args.requested_training_mode,
         "training_preset": args.training_preset,
         "training_mode": args.training_mode,
+        "prediction_target": args.prediction_target,
         "rollout_steps": args.rollout_steps,
+        "rollout_steps_start": args.rollout_steps_start,
+        "rollout_steps_end": args.rollout_steps_end,
         "rollout_loss_weight": args.rollout_loss_weight,
+        "rollout_start_mode": args.rollout_start_mode,
+        "zero_start_prob": args.zero_start_prob,
         "scheduled_sampling_start": args.scheduled_sampling_start,
         "scheduled_sampling_end": args.scheduled_sampling_end,
+        "early_stop_on_autoreg": args.early_stop_on_autoreg,
+        "autoreg_patience": args.autoreg_patience,
+        "stopped_early": stopped_early,
         "training_time_sec": time.time() - start,
         "selected_model": selected_model,
         "selected_epoch": selected_epoch,

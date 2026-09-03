@@ -26,12 +26,15 @@ Prepare the project for reliable continued development while preserving the curr
 - RNN early-dense preprocessing should use the symlink filter directory `/mnt/Luna.jl-master/training_data_ar_t0p6_earlydense_z1401_links`, not the mixed source directory.
 - t0p6 early-dense z1401 preprocessing completed: `/mnt/Luna.jl-master/processed_t0p6_earlydense_z1401_v1`, with `Train=5446`, `Val=1167`, `Test=1167`, and `y_temporal=(N, 1401, 1000)`.
 - RNN z1401 export completed: `/mnt/Luna.jl-master/rnn_earlydense/simulations/luna_t0p6_earlydense_z1401_conditional.mat`.
-- `open_source_legacy` z1401 training is running as the pure one-step baseline; the `conditional_legacy` one-step run was stopped after showing high stepwise R2 but unstable autoregressive R2.
+- `open_source_legacy` z1401 training was stopped at epoch 20 after confirming high stepwise R2 but negative autoregressive R2.
+- The `conditional_legacy` one-step run was stopped after showing high stepwise R2 but unstable autoregressive R2.
 - The first `features_z + scheduled_sampling` z1401 run was stopped after epoch 14 because full autoregressive R2 peaked early and then declined while stepwise R2 kept improving.
 - RNN scripts now support warm-start initialization and z-axis crop/downsample export for controlled long-horizon diagnostics.
 - Warm-start scheduled-sampling smoke test on full z1401 completed but did not improve full autoregressive rollout; it preserved high stepwise R2 while autoregressive R2 remained negative.
 - Early-10-cm downsampled RNN data was exported as `/mnt/Luna.jl-master/rnn_earlydense/simulations/luna_t0p6_earlydense_z10cm_201_conditional.mat` with `data=(7780, 1000, 201)` and `z_norm=(201,)`.
-- Early-10-cm scheduled-sampling training is running; its first epoch reached positive autoregressive R2, suggesting that the full z1401 failure is strongly affected by long rollout length.
+- Early-10-cm scheduled-sampling training completed; it selected the best autoregressive checkpoint from epoch 1 and reached positive final autoregressive R2, suggesting that the full z1401 failure is strongly affected by long rollout length.
+- RNN preprocessing now has a planned Salmela-style `rnn_paper_db` route: global training-set max, dB compression, `-55 dB` floor, and `[0,1]` targets.
+- RNN training now has a planned autoregressive-aware route using residual prediction, curriculum rollout horizon, mixed zero/random rollout starts, and early stopping by autoregressive R2.
 
 ## Active manuscript and presentation files
 
@@ -46,8 +49,8 @@ Binary presentation and submission files are intentionally not tracked in normal
 
 ## Next candidates
 
-1. Monitor `open_source_legacy` and stop it after a sufficient pure one-step baseline if autoregressive remains clearly negative.
-2. Monitor the downsampled early-10-cm scheduled-sampling diagnostic.
-3. Compare early-10-cm autoregressive behavior against full z1401 runs to separate long-horizon accumulation from local propagation-model error.
+1. Run the `rnn_paper_db` preprocessing route on the filtered t0p6 early-dense z1401 subset.
+2. Export `z10cm_101`, `z10cm_201`, and `z50cm_501` RNN datasets from the `rnn_paper_db` processed data.
+3. Compare direct versus residual scheduled-sampling RNN on `z10cm_101` first.
 4. Compare temporal CNN and temporal Transformer under the same early-dense and temporal-selection metrics.
 5. Start forward-surrogate-based inverse design before training a standalone inverse model.

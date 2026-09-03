@@ -85,7 +85,7 @@ Examples:
     parser.add_argument('--target-points', type=int, default=500,
                         help='Number of wavelength samples per spectrum (default: 500)')
     parser.add_argument('--spectrum-normalization', type=str, default='per_sample_minmax',
-                        choices=['per_sample_minmax', 'global_log_standard', 'none_log'],
+                        choices=['per_sample_minmax', 'global_log_standard', 'none_log', 'rnn_paper_db'],
                         help='Spectrum normalization mode')
     parser.add_argument('--sample-filter', type=str, default='normal',
                         choices=['normal', 'earlydense', 'all'],
@@ -376,6 +376,8 @@ def process_spectrum(Eω_output, omega=None):
                 processed = np.zeros_like(log_spectrum)
         elif SPECTRUM_NORMALIZATION in ('global_log_standard', 'none_log'):
             processed = log_spectrum
+        elif SPECTRUM_NORMALIZATION == 'rnn_paper_db':
+            processed = spectrum_interp
         else:
             raise ValueError(f"Unsupported spectrum normalization: {SPECTRUM_NORMALIZATION}")
         
@@ -965,7 +967,8 @@ def main():
     
     # Temporal output normalization.
     # per_sample_minmax preserves legacy behavior; global_log_standard keeps
-    # between-sample intensity differences in log-power space.
+    # between-sample intensity differences in log-power space. rnn_paper_db
+    # follows the Salmela RNN baseline style: global maximum, dB clipping, [0,1].
     output_normalization = {'mode': SPECTRUM_NORMALIZATION}
     if SPECTRUM_NORMALIZATION == 'per_sample_minmax':
         y_temp_train_scaled = np.zeros_like(y_temp_train)
@@ -1003,6 +1006,30 @@ def main():
         y_temp_train_scaled = y_temp_train.copy()
         y_temp_val_scaled = y_temp_val.copy()
         y_temp_test_scaled = y_temp_test.copy()
+    elif SPECTRUM_NORMALIZATION == 'rnn_paper_db':
+        reference_temporal = y_temp_test if eval_only else y_temp_train
+        rnn_db_reference_max = float(np.max(np.abs(reference_temporal)))
+        rnn_db_floor = -55.0
+        rnn_db_eps = EPSILON
+        if rnn_db_reference_max <= rnn_db_eps:
+            logging.warning("RNN paper dB reference max is near zero; using 1.0")
+            rnn_db_reference_max = 1.0
+
+        def rnn_paper_db_scale(arr):
+            normalized = np.maximum(np.asarray(arr, dtype=np.float64) / rnn_db_reference_max, rnn_db_eps)
+            db = 10.0 * np.log10(normalized)
+            db = np.clip(db, rnn_db_floor, 0.0)
+            return (db / abs(rnn_db_floor) + 1.0).astype(np.float32)
+
+        y_temp_train_scaled = rnn_paper_db_scale(y_temp_train)
+        y_temp_val_scaled = rnn_paper_db_scale(y_temp_val)
+        y_temp_test_scaled = rnn_paper_db_scale(y_temp_test)
+        output_normalization.update({
+            'rnn_db_reference_max': rnn_db_reference_max,
+            'rnn_db_floor': rnn_db_floor,
+            'rnn_db_eps': rnn_db_eps,
+            'target_range': [0.0, 1.0],
+        })
     else:
         raise ValueError(f"Unsupported spectrum normalization: {SPECTRUM_NORMALIZATION}")
 

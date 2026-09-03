@@ -49,6 +49,13 @@ After editing:
   - `feat: add temporal r2 checkpoint selection`
   - `fix: preserve visualized sample indices`
 
+## Cloud execution rule
+
+- Run cloud jobs in the background by default, especially preprocessing, training, evaluation, visualization, and data conversion jobs.
+- Prefer `nohup ... > path/to/job.nohup.log 2>&1 &` and record the PID plus log path in the reply.
+- Use foreground cloud commands only for quick read-only checks such as `tail`, `ls`, `ps`, `df`, `--help`, or short smoke commands that are known to finish in under one minute.
+- For long jobs, always expose a `tail -f` command so progress can be checked without keeping the SSH session attached.
+
 ## Review habit
 
 After a meaningful change, ask for a review-style pass:

@@ -47,6 +47,10 @@ def parse_args():
                         help="Compression for HDF5 output")
     parser.add_argument("--include-features", action="store_true",
                         help="Also export X_<split>.npy as /features for conditional RNN training")
+    parser.add_argument("--z-max-fraction", type=float, default=None,
+                        help="Optional maximum normalized z fraction to keep, e.g. 0.2 keeps the first 20%%")
+    parser.add_argument("--z-target-points", type=int, default=None,
+                        help="Optional number of z samples to keep after z-range filtering")
     parser.add_argument("--log-file", default=None, help="Optional log file path")
     parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING"], default="INFO",
                         help="Logging verbosity")
@@ -152,6 +156,35 @@ def load_z_reference(input_dir, split, n_steps):
     return z_norm
 
 
+def select_z_indices(z_norm, z_max_fraction=None, z_target_points=None):
+    """Return z-axis indices for optional prefix cropping and uniform downsampling."""
+    n_steps = int(z_norm.size)
+    if z_max_fraction is None and z_target_points is None:
+        return np.arange(n_steps, dtype=np.int64)
+    if z_max_fraction is not None and not (0.0 < z_max_fraction <= 1.0):
+        raise ValueError("--z-max-fraction must be within (0, 1]")
+    if z_target_points is not None and z_target_points < 2:
+        raise ValueError("--z-target-points must be at least 2")
+
+    if z_max_fraction is None:
+        candidate = np.arange(n_steps, dtype=np.int64)
+    else:
+        candidate = np.flatnonzero(z_norm <= float(z_max_fraction) + 1e-7).astype(np.int64)
+        if candidate.size < 2:
+            raise ValueError(
+                f"--z-max-fraction={z_max_fraction} leaves fewer than 2 z points from {n_steps}"
+            )
+
+    if z_target_points is None:
+        return candidate
+    if z_target_points > candidate.size:
+        raise ValueError(
+            f"--z-target-points={z_target_points} exceeds available selected z points {candidate.size}"
+        )
+    positions = np.linspace(0, candidate.size - 1, int(z_target_points))
+    return candidate[np.rint(positions).astype(np.int64)]
+
+
 def save_output(path, data, output_format, compression, features=None, z_norm=None, feature_names=None):
     """Save data as MATLAB v5 or HDF5-backed MATLAB v7.3-style .mat."""
     start = time.perf_counter()
@@ -243,10 +276,27 @@ def run(args):
         if features is not None:
             log_array("features_after_max_samples", features)
 
+    z_norm_full = load_z_reference(args.input_dir, args.splits[0], temporal.shape[1])
+    z_indices = select_z_indices(
+        z_norm_full,
+        z_max_fraction=args.z_max_fraction,
+        z_target_points=args.z_target_points,
+    )
+    if z_indices.size != temporal.shape[1] or not np.array_equal(z_indices, np.arange(temporal.shape[1])):
+        LOGGER.info(
+            "Applying z selection: original_n_z=%d selected_n_z=%d z_range=[%.6g, %.6g]",
+            temporal.shape[1],
+            z_indices.size,
+            float(z_norm_full[z_indices[0]]),
+            float(z_norm_full[z_indices[-1]]),
+        )
+        temporal = temporal[:, z_indices, :]
+        log_array("temporal_after_z_selection", temporal)
+    z_norm = z_norm_full[z_indices].astype(np.float32, copy=False)
+
     LOGGER.info("Transposing temporal data from (N,n_z,n_lambda) to (N,n_lambda,n_z)")
     data = np.transpose(temporal, (0, 2, 1))
     log_array("data", data)
-    z_norm = load_z_reference(args.input_dir, args.splits[0], data.shape[2])
     log_array("z_norm", z_norm)
     os.makedirs(os.path.dirname(args.output) or ".", exist_ok=True)
     feature_names = None
@@ -280,6 +330,10 @@ def run(args):
         "features_shape": list(features.shape) if features is not None else None,
         "feature_names": feature_names,
         "z_norm_shape": list(z_norm.shape),
+        "z_max_fraction": args.z_max_fraction,
+        "z_target_points": args.z_target_points,
+        "z_selected_points": int(z_norm.shape[0]),
+        "z_selected_range": [float(z_norm[0]), float(z_norm[-1])] if z_norm.size else None,
         "conditioning_available": features is not None,
         "original_temporal_shape": list(temporal.shape),
         "wavelength_range_nm": processing_params.get("wavelength_range_nm"),

@@ -298,3 +298,96 @@ nohup python3 train_luna_rnn.py \
 
 tail -f "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_features_z_scheduled_z1401_v1/train.log"
 ```
+
+## Warm-start scheduled-sampling RNN
+
+Use this after a conditional one-step checkpoint exists. This preserves the
+local one-step propagation mapping, then fine-tunes for autoregressive
+stability with a lower learning rate and gentler feedback schedule.
+
+```bash
+source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
+cd "$AI_AR_HCF_REPO/rnnnonlinear-master/rnnnonlinear-master"
+
+python3 train_luna_rnn.py \
+  --data "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/simulations/luna_t0p6_earlydense_z1401_conditional.mat" \
+  --output-dir "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_smoke_features_z_warm_scheduled_z1401" \
+  --init-from "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_features_z_z1401_v1/best_stepwise_model.pth" \
+  --training-mode scheduled_sampling \
+  --conditioning features_z \
+  --rollout-steps 100 \
+  --scheduled-sampling-start 0.0 \
+  --scheduled-sampling-end 0.2 \
+  --window-size 10 \
+  --hidden 250 \
+  --learning-rate 2e-5 \
+  --epochs 2 \
+  --batch-size 8 \
+  --train-evolutions 200 \
+  --test-evolutions 50 \
+  --eval-autoregressive-every 1 \
+  --eval-autoregressive-samples 16 \
+  --autoregressive-eval-batch-size 8 \
+  --log-file "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_smoke_features_z_warm_scheduled_z1401/train.log"
+
+nohup python3 train_luna_rnn.py \
+  --data "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/simulations/luna_t0p6_earlydense_z1401_conditional.mat" \
+  --output-dir "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_features_z_warm_scheduled_z1401_v1" \
+  --init-from "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_features_z_z1401_v1/best_stepwise_model.pth" \
+  --training-mode scheduled_sampling \
+  --conditioning features_z \
+  --rollout-steps 100 \
+  --scheduled-sampling-start 0.0 \
+  --scheduled-sampling-end 0.2 \
+  --window-size 10 \
+  --hidden 250 \
+  --learning-rate 2e-5 \
+  --epochs 40 \
+  --batch-size 8 \
+  --eval-autoregressive-every 2 \
+  --eval-autoregressive-samples 64 \
+  --autoregressive-eval-batch-size 8 \
+  --checkpoint-every 1 \
+  --log-file "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_features_z_warm_scheduled_z1401_v1/train.log" \
+  > "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_features_z_warm_scheduled_z1401_v1.nohup.log" 2>&1 &
+```
+
+## Early-10cm downsampled RNN diagnostic
+
+This creates a smaller RNN task from the same processed early-dense data:
+front 20% of the propagation distance, downsampled to 201 z points.
+
+```bash
+source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
+cd "$AI_AR_HCF_REPO/rnnnonlinear-master/rnnnonlinear-master"
+
+python3 prepare_luna_data.py \
+  --input-dir "$LUNA_LEGACY_DATA_ROOT/processed_t0p6_earlydense_z1401_v1" \
+  --output "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/simulations/luna_t0p6_earlydense_z10cm_201_conditional.mat" \
+  --output-format hdf5 \
+  --compression gzip \
+  --include-features \
+  --z-max-fraction 0.2 \
+  --z-target-points 201 \
+  --log-file "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/prepare_t0p6_earlydense_z10cm_201_conditional.log"
+
+nohup python3 train_luna_rnn.py \
+  --data "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/simulations/luna_t0p6_earlydense_z10cm_201_conditional.mat" \
+  --output-dir "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_features_z_scheduled_z10cm_201_v1" \
+  --training-mode scheduled_sampling \
+  --conditioning features_z \
+  --rollout-steps 100 \
+  --scheduled-sampling-start 0.0 \
+  --scheduled-sampling-end 0.3 \
+  --window-size 10 \
+  --hidden 250 \
+  --learning-rate 1e-4 \
+  --epochs 60 \
+  --batch-size 16 \
+  --eval-autoregressive-every 2 \
+  --eval-autoregressive-samples 64 \
+  --autoregressive-eval-batch-size 8 \
+  --checkpoint-every 1 \
+  --log-file "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_features_z_scheduled_z10cm_201_v1/train.log" \
+  > "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_features_z_scheduled_z10cm_201_v1.nohup.log" 2>&1 &
+```

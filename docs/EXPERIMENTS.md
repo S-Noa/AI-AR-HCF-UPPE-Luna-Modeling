@@ -34,8 +34,11 @@ Use this file as the lightweight memory for model and data experiments. Keep eac
 - RNN export target: `/mnt/Luna.jl-master/rnn_earlydense/simulations/luna_t0p6_earlydense_z1401_conditional.mat`.
 - Completed preprocessing: `Train=5446`, `Val=1167`, `Test=1167`, `y_temporal=(N, 1401, 1000)`.
 - Completed smoke tests: legacy smoke reached high stepwise R2 but poor autoregressive behavior; scheduled-sampling smoke completed without OOM.
-- Active comparison: `open_source_legacy` with no conditioning versus `features_z + scheduled_sampling`.
+- Active comparison: `open_source_legacy` with no conditioning versus warm-start `features_z + scheduled_sampling`.
 - Stopped run: `conditional_legacy` one-step was stopped after epoch 14 because it did not improve autoregressive stability enough to justify a third concurrent full job.
+- Stopped run: first from-scratch `features_z + scheduled_sampling` was stopped after epoch 14 because autoregressive R2 peaked early (`0.2954` at epoch 2) and then declined while stepwise R2 kept improving.
+- Warm-start diagnostic: initializing scheduled sampling from `results_features_z_z1401_v1/best_stepwise_model.pth` preserved high stepwise R2 but kept full z1401 autoregressive R2 negative in the smoke test.
+- New diagnostic path: front-10-cm / 201-z-point dataset exported successfully and training started to separate long-rollout accumulation from early-z physics.
 - Key metrics: `stepwise_r2`, `autoregressive_r2`, final autoregressive spectrum quality, and temporal evolution plots.
 
 ## Early-dense data

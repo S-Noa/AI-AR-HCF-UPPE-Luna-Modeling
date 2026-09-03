@@ -27,7 +27,11 @@ Prepare the project for reliable continued development while preserving the curr
 - t0p6 early-dense z1401 preprocessing completed: `/mnt/Luna.jl-master/processed_t0p6_earlydense_z1401_v1`, with `Train=5446`, `Val=1167`, `Test=1167`, and `y_temporal=(N, 1401, 1000)`.
 - RNN z1401 export completed: `/mnt/Luna.jl-master/rnn_earlydense/simulations/luna_t0p6_earlydense_z1401_conditional.mat`.
 - `open_source_legacy` z1401 training is running as the pure one-step baseline; the `conditional_legacy` one-step run was stopped after showing high stepwise R2 but unstable autoregressive R2.
-- `features_z + scheduled_sampling` z1401 training is running to target autoregressive drift.
+- The first `features_z + scheduled_sampling` z1401 run was stopped after epoch 14 because full autoregressive R2 peaked early and then declined while stepwise R2 kept improving.
+- RNN scripts now support warm-start initialization and z-axis crop/downsample export for controlled long-horizon diagnostics.
+- Warm-start scheduled-sampling smoke test on full z1401 completed but did not improve full autoregressive rollout; it preserved high stepwise R2 while autoregressive R2 remained negative.
+- Early-10-cm downsampled RNN data was exported as `/mnt/Luna.jl-master/rnn_earlydense/simulations/luna_t0p6_earlydense_z10cm_201_conditional.mat` with `data=(7780, 1000, 201)` and `z_norm=(201,)`.
+- Early-10-cm scheduled-sampling training is running; its first epoch reached positive autoregressive R2, suggesting that the full z1401 failure is strongly affected by long rollout length.
 
 ## Active manuscript and presentation files
 
@@ -42,8 +46,8 @@ Binary presentation and submission files are intentionally not tracked in normal
 
 ## Next candidates
 
-1. Monitor `open_source_legacy` and `features_z_scheduled_z1401_v1` training logs.
-2. Compare `stepwise_r2`, `autoregressive_r2`, and `autoregressive_final_r2` after enough epochs.
-3. If scheduled sampling still fails, test rollout loss or a downsampled early-10-cm diagnostic task.
+1. Monitor `open_source_legacy` and stop it after a sufficient pure one-step baseline if autoregressive remains clearly negative.
+2. Monitor the downsampled early-10-cm scheduled-sampling diagnostic.
+3. Compare early-10-cm autoregressive behavior against full z1401 runs to separate long-horizon accumulation from local propagation-model error.
 4. Compare temporal CNN and temporal Transformer under the same early-dense and temporal-selection metrics.
 5. Start forward-surrogate-based inverse design before training a standalone inverse model.

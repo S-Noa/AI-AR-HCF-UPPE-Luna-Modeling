@@ -60,6 +60,8 @@ def parse_args():
     parser.add_argument("--output-activation", choices=["sigmoid", "identity"], default="sigmoid")
     parser.add_argument("--conditioning", choices=["auto", "none", "features", "z", "features_z"], default="auto",
                         help="Condition LSTM inputs on exported sample features and/or normalized z")
+    parser.add_argument("--init-from", default=None,
+                        help="Optional checkpoint/state_dict used to initialize the model before training")
     parser.add_argument("--seed", type=int, default=123)
     parser.add_argument("--no-cuda", action="store_true")
     parser.add_argument("--log-file", default=None, help="Optional log file path")
@@ -210,6 +212,31 @@ def resolve_conditioning(mode, features, z_norm):
 
 def conditioning_dim_for(use_features, use_z, features):
     return (features.shape[1] if use_features else 0) + (1 if use_z else 0)
+
+
+def load_model_init(model, checkpoint_path, device):
+    """Initialize model weights from a plain state_dict or training-state checkpoint."""
+    if not checkpoint_path:
+        return
+    if not os.path.exists(checkpoint_path):
+        raise FileNotFoundError(f"--init-from checkpoint not found: {checkpoint_path}")
+    logging.info("Loading initial model weights from %s", checkpoint_path)
+    checkpoint = torch.load(checkpoint_path, map_location=device)
+    if isinstance(checkpoint, dict) and "model_state_dict" in checkpoint:
+        state_dict = checkpoint["model_state_dict"]
+    else:
+        state_dict = checkpoint
+    if not isinstance(state_dict, dict):
+        raise ValueError(f"--init-from must contain a PyTorch state_dict, got {type(state_dict)}")
+    try:
+        model.load_state_dict(state_dict, strict=True)
+    except RuntimeError as exc:
+        raise RuntimeError(
+            "Failed to load --init-from checkpoint. Check that conditioning mode, "
+            "window size, hidden size, output activation, and wavelength grid match "
+            "the checkpoint architecture."
+        ) from exc
+    logging.info("Loaded initial model weights successfully")
 
 
 def concat_condition_np(spectra, feature=None, z_values=None):
@@ -657,6 +684,7 @@ def main():
         conditioning_dim=conditioning_dim
     ).to(device)
     model.window_size = int(args.window_size)
+    load_model_init(model, args.init_from, device)
     optimizer = torch.optim.RMSprop(model.parameters(), lr=args.learning_rate, alpha=0.9)
     loss_fn = nn.MSELoss()
 

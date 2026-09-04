@@ -51,6 +51,8 @@ def parse_args():
     parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--batch-size", type=int, default=128)
     parser.add_argument("--learning-rate", type=float, default=1e-4)
+    parser.add_argument("--grad-clip", type=float, default=0.0,
+                        help="Clip gradient norm to this value; 0 disables clipping")
     parser.add_argument("--hidden", type=int, default=250)
     parser.add_argument("--test-fraction", type=float, default=0.1)
     parser.add_argument("--train-evolutions", type=int, default=None,
@@ -541,7 +543,7 @@ def train_recursive_epoch(model, loader, optimizer, loss_fn, device, mode,
                           rollout_steps, feedback_probability, rollout_loss_weight,
                           z_norm=None, use_features=False, use_z=False,
                           prediction_target="direct", rollout_start_mode="random",
-                          zero_start_prob=0.5, detach_feedback=True):
+                          zero_start_prob=0.5, detach_feedback=True, grad_clip=0.0):
     """Train on short recursive trajectories with scheduled feedback."""
     model.train()
     total_loss_sum = 0.0
@@ -601,6 +603,8 @@ def train_recursive_epoch(model, loader, optimizer, loss_fn, device, mode,
 
         optimizer.zero_grad()
         total_loss.backward()
+        if grad_clip and grad_clip > 0.0:
+            torch.nn.utils.clip_grad_norm_(model.parameters(), grad_clip)
         optimizer.step()
 
         total_loss_sum += float(total_loss.detach().cpu())
@@ -648,6 +652,8 @@ def main():
         raise ValueError("--zero-start-prob must be within [0, 1]")
     if args.autoreg_patience < 1:
         raise ValueError("--autoreg-patience must be at least 1")
+    if args.grad_clip < 0.0:
+        raise ValueError("--grad-clip must be non-negative")
     if args.prediction_target == "residual" and args.output_activation != "identity":
         raise ValueError("--prediction-target residual requires --output-activation identity")
     logging.info(
@@ -794,6 +800,8 @@ def main():
                 pred = decode_next_spectrum(model, x, args.prediction_target)
                 loss = loss_fn(pred, y)
                 loss.backward()
+                if args.grad_clip and args.grad_clip > 0.0:
+                    torch.nn.utils.clip_grad_norm_(model.parameters(), args.grad_clip)
                 optimizer.step()
                 train_loss += float(loss.detach().cpu())
                 batches += 1
@@ -824,6 +832,7 @@ def main():
                 rollout_start_mode=args.rollout_start_mode,
                 zero_start_prob=args.zero_start_prob,
                 detach_feedback=not args.no_detach_feedback,
+                grad_clip=args.grad_clip,
             )
         if args.training_mode == "one_step":
             current_rollout_steps = 0
@@ -981,6 +990,7 @@ def main():
         "split_mode": "explicit" if explicit_split else "test_fraction",
         "window_size": args.window_size,
         "hidden": args.hidden,
+        "grad_clip": args.grad_clip,
         "output_activation": args.output_activation,
         "conditioning_mode": conditioning_mode,
         "conditioning_dim": int(conditioning_dim),

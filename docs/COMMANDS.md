@@ -584,6 +584,7 @@ nohup python3 train_luna_rnn.py \
   --window-size 10 \
   --hidden 250 \
   --learning-rate 5e-5 \
+  --grad-clip 1.0 \
   --epochs 30 \
   --batch-size 16 \
   --eval-autoregressive-every 1 \
@@ -594,4 +595,41 @@ nohup python3 train_luna_rnn.py \
   --checkpoint-every 1 \
   --log-file "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_direct_z10cm_101_perminmax_stable_v1/train.log" \
   > "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_direct_z10cm_101_perminmax_stable_v1.nohup.log" 2>&1 &
+```
+
+If the 101-point task remains positive, run the 201-point front-10-cm
+comparison:
+
+```bash
+source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
+cd "$AI_AR_HCF_REPO/rnnnonlinear-master/rnnnonlinear-master"
+
+nohup python3 train_luna_rnn.py \
+  --data "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/simulations/luna_t0p6_earlydense_z10cm_201_conditional.mat" \
+  --output-dir "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_direct_z10cm_201_perminmax_stable_v1" \
+  --training-mode scheduled_sampling \
+  --conditioning features_z \
+  --prediction-target direct \
+  --output-activation sigmoid \
+  --rollout-steps-start 100 \
+  --rollout-steps-end 100 \
+  --scheduled-sampling-start 0.0 \
+  --scheduled-sampling-end 0.05 \
+  --rollout-start-mode mixed \
+  --zero-start-prob 0.7 \
+  --no-detach-feedback \
+  --window-size 10 \
+  --hidden 250 \
+  --learning-rate 5e-5 \
+  --grad-clip 1.0 \
+  --epochs 30 \
+  --batch-size 16 \
+  --eval-autoregressive-every 1 \
+  --eval-autoregressive-samples 256 \
+  --autoregressive-eval-batch-size 8 \
+  --early-stop-on-autoreg \
+  --autoreg-patience 8 \
+  --checkpoint-every 1 \
+  --log-file "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_direct_z10cm_201_perminmax_stable_v1/train.log" \
+  > "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_direct_z10cm_201_perminmax_stable_v1.nohup.log" 2>&1 &
 ```

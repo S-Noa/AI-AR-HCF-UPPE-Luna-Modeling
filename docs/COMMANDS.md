@@ -733,3 +733,149 @@ nohup python3 train_luna_rnn.py \
   --log-file "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_direct_z10cm_51_perminmax_stable_v1/train.log" \
   > "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_direct_z10cm_51_perminmax_stable_v1.nohup.log" 2>&1 &
 ```
+
+## RNN autoregressive attribution matrix
+
+Use these commands to separate original-code compatibility from Luna data
+difficulty. Long cloud jobs should run in the background and write logs.
+
+### Download original RNNnonlinear archive
+
+The Zenodo record `4304771` provides the original code/data archive. It is a
+large file and may download slowly from the cloud, so keep it in the
+`rnn_original_data` area:
+
+```bash
+source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
+mkdir -p "$LUNA_LEGACY_DATA_ROOT/rnn_original_data"
+
+nohup bash -lc '
+set -euo pipefail
+cd "$LUNA_LEGACY_DATA_ROOT/rnn_original_data"
+wget -c -O RNNnonlinear_v2.zip \
+  https://zenodo.org/api/records/4304771/files/RNNnonlinear_v2.zip/content
+unzip -q RNNnonlinear_v2.zip -d extracted
+' > "$LUNA_LEGACY_DATA_ROOT/rnn_original_data/download_original_rnn.log" 2>&1 &
+```
+
+### Original code on original data
+
+The original scripts depend on old TensorFlow/Keras versions
+(`tensorflow==1.9.0`, `keras==2.2.0`). Run this in an isolated Python 3.6/TF1
+environment, not in the current Luna training environment:
+
+```bash
+cd "$LUNA_LEGACY_DATA_ROOT/rnn_original_data/extracted"/rnnnonlinear-master
+python trainRNN.py > "$LUNA_LEGACY_DATA_ROOT/rnn_original_data/original_trainRNN_SC_spec_251.log" 2>&1
+```
+
+If dependency setup is not available, use the pretrained `.h5` networks and
+`predRNN.py` inside the same isolated environment to reproduce the published
+autoregressive figures first.
+
+### Convert original RNNnonlinear `.mat` data for PyTorch training
+
+After downloading an original Zenodo `.mat` file, convert it without changing
+its axis order:
+
+```bash
+source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
+cd "$AI_AR_HCF_REPO/rnnnonlinear-master/rnnnonlinear-master"
+
+python3 convert_rnnnonlinear_mat.py \
+  --input "$LUNA_LEGACY_DATA_ROOT/rnn_original_data/simulations/SC_spec_251.mat" \
+  --output "$LUNA_LEGACY_DATA_ROOT/rnn_original_data/converted/SC_spec_251_dBm.h5" \
+  --normalization dBm \
+  --compression gzip \
+  --log-file "$LUNA_LEGACY_DATA_ROOT/rnn_original_data/convert_SC_spec_251_dBm.log"
+```
+
+Then train our PyTorch RNN on the converted original data:
+
+```bash
+nohup python3 train_luna_rnn.py \
+  --data "$LUNA_LEGACY_DATA_ROOT/rnn_original_data/converted/SC_spec_251_dBm.h5" \
+  --output-dir "$LUNA_LEGACY_DATA_ROOT/rnn_original_data/results_pytorch_SC_spec_251_dBm_v1" \
+  --training-mode open_source_legacy \
+  --conditioning none \
+  --prediction-target direct \
+  --output-activation sigmoid \
+  --window-size 10 \
+  --hidden 250 \
+  --learning-rate 1e-4 \
+  --epochs 80 \
+  --batch-size 128 \
+  --train-evolutions 1250 \
+  --test-evolutions 50 \
+  --eval-autoregressive-every 1 \
+  --eval-autoregressive-samples 50 \
+  --autoregressive-eval-batch-size 8 \
+  --checkpoint-every 1 \
+  --log-file "$LUNA_LEGACY_DATA_ROOT/rnn_original_data/results_pytorch_SC_spec_251_dBm_v1/train.log" \
+  > "$LUNA_LEGACY_DATA_ROOT/rnn_original_data/results_pytorch_SC_spec_251_dBm_v1.nohup.log" 2>&1 &
+```
+
+### Export original-difficulty Luna tasks
+
+These tasks keep the same Luna samples and normalization but reduce the z and
+wavelength dimensions toward the original RNN paper scale:
+
+```bash
+source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
+cd "$AI_AR_HCF_REPO/rnnnonlinear-master/rnnnonlinear-master"
+
+python3 prepare_luna_data.py \
+  --input-dir "$LUNA_LEGACY_DATA_ROOT/processed_t0p6_earlydense_z1401_v1" \
+  --output "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/simulations/luna_t0p6_earlydense_z10cm_51_lambda251_conditional.mat" \
+  --output-format hdf5 \
+  --compression gzip \
+  --include-features \
+  --z-max-fraction 0.2 \
+  --z-target-points 51 \
+  --lambda-target-points 251 \
+  --log-file "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/prepare_z10cm_51_lambda251.log"
+
+python3 prepare_luna_data.py \
+  --input-dir "$LUNA_LEGACY_DATA_ROOT/processed_t0p6_earlydense_z1401_v1" \
+  --output "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/simulations/luna_t0p6_earlydense_z10cm_101_lambda251_conditional.mat" \
+  --output-format hdf5 \
+  --compression gzip \
+  --include-features \
+  --z-max-fraction 0.2 \
+  --z-target-points 101 \
+  --lambda-target-points 251 \
+  --log-file "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/prepare_z10cm_101_lambda251.log"
+```
+
+Run the preferred stable RNN recipe on the 51-point, 251-wavelength task:
+
+```bash
+nohup python3 train_luna_rnn.py \
+  --data "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/simulations/luna_t0p6_earlydense_z10cm_51_lambda251_conditional.mat" \
+  --output-dir "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_direct_z10cm_51_lambda251_perminmax_v1" \
+  --training-mode scheduled_sampling \
+  --conditioning features_z \
+  --prediction-target direct \
+  --output-activation sigmoid \
+  --rollout-steps-start 50 \
+  --rollout-steps-end 50 \
+  --scheduled-sampling-start 0.0 \
+  --scheduled-sampling-end 0.05 \
+  --rollout-start-mode mixed \
+  --zero-start-prob 0.8 \
+  --no-detach-feedback \
+  --window-size 10 \
+  --hidden 250 \
+  --learning-rate 5e-5 \
+  --grad-clip 1.0 \
+  --epochs 30 \
+  --batch-size 16 \
+  --eval-autoregressive-every 1 \
+  --eval-autoregressive-samples 256 \
+  --autoregressive-eval-batch-size 8 \
+  --early-stop-on-autoreg \
+  --autoreg-patience 8 \
+  --checkpoint-every 1 \
+  --log-file "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_direct_z10cm_51_lambda251_perminmax_v1/train.log" \
+  > "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_direct_z10cm_51_lambda251_perminmax_v1.nohup.log" 2>&1 &
+```

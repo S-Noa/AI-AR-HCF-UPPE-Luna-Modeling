@@ -51,6 +51,8 @@ def parse_args():
                         help="Optional maximum normalized z fraction to keep, e.g. 0.2 keeps the first 20%%")
     parser.add_argument("--z-target-points", type=int, default=None,
                         help="Optional number of z samples to keep after z-range filtering")
+    parser.add_argument("--lambda-target-points", type=int, default=None,
+                        help="Optional number of wavelength samples to keep by uniform index downsampling")
     parser.add_argument("--log-file", default=None, help="Optional log file path")
     parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING"], default="INFO",
                         help="Logging verbosity")
@@ -185,6 +187,22 @@ def select_z_indices(z_norm, z_max_fraction=None, z_target_points=None):
     return candidate[np.rint(positions).astype(np.int64)]
 
 
+def select_uniform_indices(n_points, target_points, axis_name):
+    """Return uniformly spaced integer indices for an optional axis downsample."""
+    n_points = int(n_points)
+    if target_points is None:
+        return np.arange(n_points, dtype=np.int64)
+    target_points = int(target_points)
+    if target_points < 2:
+        raise ValueError(f"--{axis_name}-target-points must be at least 2")
+    if target_points > n_points:
+        raise ValueError(
+            f"--{axis_name}-target-points={target_points} exceeds available points {n_points}"
+        )
+    positions = np.linspace(0, n_points - 1, target_points)
+    return np.rint(positions).astype(np.int64)
+
+
 def save_output(path, data, output_format, compression, features=None, z_norm=None, feature_names=None):
     """Save data as MATLAB v5 or HDF5-backed MATLAB v7.3-style .mat."""
     start = time.perf_counter()
@@ -294,6 +312,25 @@ def run(args):
         log_array("temporal_after_z_selection", temporal)
     z_norm = z_norm_full[z_indices].astype(np.float32, copy=False)
 
+    lambda_indices = select_uniform_indices(
+        temporal.shape[2],
+        args.lambda_target_points,
+        axis_name="lambda",
+    )
+    if (
+        lambda_indices.size != temporal.shape[2]
+        or not np.array_equal(lambda_indices, np.arange(temporal.shape[2]))
+    ):
+        LOGGER.info(
+            "Applying wavelength selection: original_n_lambda=%d selected_n_lambda=%d first_index=%d last_index=%d",
+            temporal.shape[2],
+            lambda_indices.size,
+            int(lambda_indices[0]),
+            int(lambda_indices[-1]),
+        )
+        temporal = temporal[:, :, lambda_indices]
+        log_array("temporal_after_lambda_selection", temporal)
+
     LOGGER.info("Transposing temporal data from (N,n_z,n_lambda) to (N,n_lambda,n_z)")
     data = np.transpose(temporal, (0, 2, 1))
     log_array("data", data)
@@ -334,6 +371,9 @@ def run(args):
         "z_target_points": args.z_target_points,
         "z_selected_points": int(z_norm.shape[0]),
         "z_selected_range": [float(z_norm[0]), float(z_norm[-1])] if z_norm.size else None,
+        "lambda_target_points": args.lambda_target_points,
+        "lambda_selected_points": int(data.shape[1]),
+        "lambda_selected_indices": [int(lambda_indices[0]), int(lambda_indices[-1])] if lambda_indices.size else None,
         "conditioning_available": features is not None,
         "original_temporal_shape": list(temporal.shape),
         "wavelength_range_nm": processing_params.get("wavelength_range_nm"),

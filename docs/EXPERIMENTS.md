@@ -47,9 +47,22 @@ Use this file as the lightweight memory for model and data experiments. Keep eac
 - Added `--rnn-db-floor`, `--rnn-db-reference-mode`, and `--rnn-db-reference-percentile` to test less aggressive dB normalization without changing default behavior.
 - Added `--no-detach-feedback` to `train_luna_rnn.py` so recursive feedback can be trained with differentiable truncated BPTT. A small `z10cm_201` smoke improved slowly but remained negative after 5 epochs, so this is not yet the default route.
 - Completed candidate baseline: `/mnt/Luna.jl-master/rnn_earlydense/results_direct_z10cm_101_perminmax_stable_v1`, using per-sample min-max targets, direct sigmoid prediction, 101 front-10-cm z points, low scheduled-sampling feedback, and autoregressive checkpoint selection. It selected epoch 5 and reached full-test `autoregressive_r2=0.4174`, with positive but modest `autoregressive_final_r2=0.1584`.
-- Active next comparison: run the same stable direct/sigmoid route on the harder `z10cm_201` task, with `--grad-clip 1.0`.
-- Queued follow-up experiments: (1) `z10cm_101` one-step warm-start followed by low-feedback scheduled sampling, and (2) `z10cm_51` direct scheduled sampling to test whether a coarser z grid makes autoregressive rollout substantially more stable.
+- Completed harder `z10cm_201` comparison: `/mnt/Luna.jl-master/rnn_earlydense/results_direct_z10cm_201_perminmax_stable_v1` selected epoch 15 and reached full-test `autoregressive_r2=0.2867`, `autoregressive_final_r2=0.0748`, `stepwise_r2=0.9671`.
+- Completed warm-start comparison: `/mnt/Luna.jl-master/rnn_earlydense/results_warm_scheduled_z10cm_101_perminmax_v1` selected epoch 1 and reached full-test `autoregressive_r2=0.2830`, `autoregressive_final_r2=0.1686`, `stepwise_r2=0.9831`; warm-start did not improve rollout stability.
+- Completed coarse `z10cm_51` comparison: `/mnt/Luna.jl-master/rnn_earlydense/results_direct_z10cm_51_perminmax_stable_v1` selected epoch 2 and reached full-test `autoregressive_r2=0.4296`, `autoregressive_final_r2=0.1774`, `stepwise_r2=0.9126`. This is the current best short RNN autoregressive baseline.
+- New attribution plan: compare original RNNnonlinear code/data against our PyTorch training code and low-dimensional Luna tasks. This should separate code mismatch from Luna data difficulty.
 - Key metrics: `stepwise_r2`, `autoregressive_r2`, final autoregressive spectrum quality, and temporal evolution plots.
+
+## RNN attribution matrix
+
+- Goal: answer whether Luna autoregressive failure is primarily a code-port issue or a data/task-difficulty issue.
+- Original-code/original-data check: run the unmodified `salmelal/rnnnonlinear` Keras workflow on Zenodo data, preferably `SC_spec_251` or `norm_NLSE_spec_128`.
+- PyTorch-code/original-data check: convert the original `.mat` data to HDF5 with `/data=(N,n_grid,n_steps)` using `convert_rnnnonlinear_mat.py`, then train/evaluate with `train_luna_rnn.py` using `conditioning=none`, `window_size=10`, direct sigmoid prediction, and the same train/test evolution counts.
+- Low-dimensional Luna check: export `z10cm_51_lambda251`, `z10cm_101_lambda251`, and optionally `z50cm_200_lambda251` from the existing processed early-dense data using `prepare_luna_data.py --lambda-target-points 251`.
+- Interpretation:
+  - If PyTorch code succeeds on original data, code migration is mostly sound.
+  - If low-dimensional Luna succeeds but full Luna fails, the bottleneck is rollout length/output dimensionality.
+  - If low-dimensional Luna still fails, the AR-HCF UPPE trajectory distribution is harder than the original NLSE/GNLSE tasks.
 
 ## Early-dense data
 

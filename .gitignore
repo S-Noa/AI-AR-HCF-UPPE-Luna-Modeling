@@ -32,6 +32,7 @@ random_samples_output/
 extreme_samples_output/
 eval_*/
 results_luna_rnn*/
+diagnostics_*/
 
 # Logs and temporary outputs
 *.log

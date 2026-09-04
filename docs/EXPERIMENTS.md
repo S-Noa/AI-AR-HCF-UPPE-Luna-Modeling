@@ -41,6 +41,12 @@ Use this file as the lightweight memory for model and data experiments. Keep eac
 - Diagnostic path: front-10-cm / 201-z-point dataset exported successfully. Scheduled-sampling training selected the best autoregressive checkpoint at epoch 1 and kept final autoregressive R2 positive, unlike full z1401 rollout.
 - New planned data route: `rnn_paper_db`, matching the Salmela RNN normalization style with global max, dB clipping, and `[0,1]` targets.
 - New planned training route: residual prediction plus curriculum rollout and mixed zero/random rollout starts.
+- Completed `rnn_paper_db` full preprocessing: `/mnt/Luna.jl-master/processed_t0p6_earlydense_z1401_rnnpaperdb_v1`.
+- `rnn_paper_db` diagnostics: the original `-55 dB` global-max scaling clips too much of the Luna target to zero, with roughly 66% zero values in temporal maps and roughly 88% zero values in final spectra. This makes the autoregressive state space very sparse.
+- A 300-sample `rnn_paper_db` diagnostic with `-80 dB` floor reduced zero clipping to about 49%, but a residual scheduled-sampling smoke test still produced negative autoregressive R2.
+- Added `--rnn-db-floor`, `--rnn-db-reference-mode`, and `--rnn-db-reference-percentile` to test less aggressive dB normalization without changing default behavior.
+- Added `--no-detach-feedback` to `train_luna_rnn.py` so recursive feedback can be trained with differentiable truncated BPTT. A small `z10cm_201` smoke improved slowly but remained negative after 5 epochs, so this is not yet the default route.
+- Active candidate for a usable RNN baseline: `/mnt/Luna.jl-master/rnn_earlydense/results_direct_z10cm_101_perminmax_stable_v1`, using per-sample min-max targets, direct sigmoid prediction, 101 front-10-cm z points, low scheduled-sampling feedback, and autoregressive checkpoint selection.
 - Key metrics: `stepwise_r2`, `autoregressive_r2`, final autoregressive spectrum quality, and temporal evolution plots.
 
 ## Early-dense data

@@ -93,10 +93,12 @@ def parse_args():
                         help="Where recursive training rollouts start along z")
     parser.add_argument("--zero-start-prob", type=float, default=0.5,
                         help="Probability of z=0 starts when --rollout-start-mode=mixed")
+    parser.add_argument("--no-detach-feedback", action="store_true",
+                        help="Backpropagate through model predictions used as recursive feedback")
     parser.add_argument("--scheduled-sampling-start", type=float, default=0.0,
-                        help="Initial probability of feeding a detached model prediction back into the input window")
+                        help="Initial probability of feeding a model prediction back into the input window")
     parser.add_argument("--scheduled-sampling-end", type=float, default=0.5,
-                        help="Final probability of feeding a detached model prediction back into the input window")
+                        help="Final probability of feeding a model prediction back into the input window")
     parser.add_argument("--eval-autoregressive-every", type=int, default=5,
                         help="Run a bounded autoregressive validation rollout every N epochs; 0 disables it")
     parser.add_argument("--eval-autoregressive-samples", type=int, default=64,
@@ -539,7 +541,7 @@ def train_recursive_epoch(model, loader, optimizer, loss_fn, device, mode,
                           rollout_steps, feedback_probability, rollout_loss_weight,
                           z_norm=None, use_features=False, use_z=False,
                           prediction_target="direct", rollout_start_mode="random",
-                          zero_start_prob=0.5):
+                          zero_start_prob=0.5, detach_feedback=True):
     """Train on short recursive trajectories with scheduled feedback."""
     model.train()
     total_loss_sum = 0.0
@@ -576,9 +578,10 @@ def train_recursive_epoch(model, loader, optimizer, loss_fn, device, mode,
 
             if mode == "scheduled_sampling":
                 use_prediction = torch.rand((sequence.size(0), 1), device=device) < feedback_probability
-                feedback = torch.where(use_prediction, pred.detach(), target)
+                pred_feedback = pred.detach() if detach_feedback else pred
+                feedback = torch.where(use_prediction, pred_feedback, target)
             else:
-                feedback = pred.detach()
+                feedback = pred.detach() if detach_feedback else pred
             next_z = z_tensor[start_step + step + 1:start_step + step + 2] if use_z else None
             feedback_input = concat_condition_torch(
                 feedback.unsqueeze(1),
@@ -820,6 +823,7 @@ def main():
                 prediction_target=args.prediction_target,
                 rollout_start_mode=args.rollout_start_mode,
                 zero_start_prob=args.zero_start_prob,
+                detach_feedback=not args.no_detach_feedback,
             )
         if args.training_mode == "one_step":
             current_rollout_steps = 0
@@ -991,6 +995,7 @@ def main():
         "rollout_loss_weight": args.rollout_loss_weight,
         "rollout_start_mode": args.rollout_start_mode,
         "zero_start_prob": args.zero_start_prob,
+        "detach_feedback": not args.no_detach_feedback,
         "scheduled_sampling_start": args.scheduled_sampling_start,
         "scheduled_sampling_end": args.scheduled_sampling_end,
         "early_stop_on_autoreg": args.early_stop_on_autoreg,

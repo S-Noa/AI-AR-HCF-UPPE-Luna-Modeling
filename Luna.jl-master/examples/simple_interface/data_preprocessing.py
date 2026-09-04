@@ -87,6 +87,13 @@ Examples:
     parser.add_argument('--spectrum-normalization', type=str, default='per_sample_minmax',
                         choices=['per_sample_minmax', 'global_log_standard', 'none_log', 'rnn_paper_db'],
                         help='Spectrum normalization mode')
+    parser.add_argument('--rnn-db-floor', type=float, default=-55.0,
+                        help='dB floor for rnn_paper_db normalization (default: -55)')
+    parser.add_argument('--rnn-db-reference-mode', type=str, default='max',
+                        choices=['max', 'percentile'],
+                        help='Reference power for rnn_paper_db: training max or percentile (default: max)')
+    parser.add_argument('--rnn-db-reference-percentile', type=float, default=99.99,
+                        help='Percentile used when --rnn-db-reference-mode percentile (default: 99.99)')
     parser.add_argument('--sample-filter', type=str, default='normal',
                         choices=['normal', 'earlydense', 'all'],
                         help='Which HDF5 samples to process: normal excludes *_earlydense.h5, earlydense only includes them, all includes both')
@@ -1008,12 +1015,27 @@ def main():
         y_temp_test_scaled = y_temp_test.copy()
     elif SPECTRUM_NORMALIZATION == 'rnn_paper_db':
         reference_temporal = y_temp_test if eval_only else y_temp_train
-        rnn_db_reference_max = float(np.max(np.abs(reference_temporal)))
-        rnn_db_floor = -55.0
+        if args.rnn_db_reference_mode == 'max':
+            rnn_db_reference_max = float(np.max(np.abs(reference_temporal)))
+        else:
+            rnn_db_reference_max = float(
+                np.percentile(np.abs(reference_temporal), args.rnn_db_reference_percentile)
+            )
+        rnn_db_floor = float(args.rnn_db_floor)
         rnn_db_eps = EPSILON
+        if rnn_db_floor >= 0.0:
+            raise ValueError("--rnn-db-floor must be negative")
         if rnn_db_reference_max <= rnn_db_eps:
             logging.warning("RNN paper dB reference max is near zero; using 1.0")
             rnn_db_reference_max = 1.0
+        logging.info(
+            "RNN paper dB normalization: reference_mode=%s, reference_percentile=%.5g, "
+            "reference_power=%.6g, floor=%.2f dB",
+            args.rnn_db_reference_mode,
+            args.rnn_db_reference_percentile,
+            rnn_db_reference_max,
+            rnn_db_floor,
+        )
 
         def rnn_paper_db_scale(arr):
             normalized = np.maximum(np.asarray(arr, dtype=np.float64) / rnn_db_reference_max, rnn_db_eps)
@@ -1028,6 +1050,8 @@ def main():
             'rnn_db_reference_max': rnn_db_reference_max,
             'rnn_db_floor': rnn_db_floor,
             'rnn_db_eps': rnn_db_eps,
+            'rnn_db_reference_mode': args.rnn_db_reference_mode,
+            'rnn_db_reference_percentile': args.rnn_db_reference_percentile,
             'target_range': [0.0, 1.0],
         })
     else:

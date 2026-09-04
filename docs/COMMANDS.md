@@ -523,3 +523,75 @@ nohup python3 train_luna_rnn.py \
   --log-file "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_residual_z10cm_101_rnnpaperdb_v1/train.log" \
   > "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_residual_z10cm_101_rnnpaperdb_v1.nohup.log" 2>&1 &
 ```
+
+## RNN normalization diagnostics and stable short-rollout baseline
+
+The original `rnn_paper_db` setting with a `-55 dB` floor is too sparse for
+the Luna early-dense spectra. Less aggressive variants can be tested without
+changing the default behavior:
+
+```bash
+source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
+cd "$LUNA_PROJECT/examples/simple_interface"
+
+nohup python3 data_preprocessing.py \
+  --input-dir "$LUNA_LEGACY_DATA_ROOT/training_data_ar_t0p6_earlydense_z1401_links" \
+  --output-dir "$LUNA_LEGACY_DATA_ROOT/processed_t0p6_earlydense_z1401_rnnpaperdb_m80_v1" \
+  --sample-filter earlydense \
+  --single-thickness-mode \
+  --thickness 0.65 \
+  --target-points 1000 \
+  --spectrum-normalization rnn_paper_db \
+  --rnn-db-reference-mode max \
+  --rnn-db-floor -80 \
+  --test-size 0.15 \
+  --val-size 0.15 \
+  --batch-size 16 \
+  > "$LUNA_LEGACY_DATA_ROOT/preprocess_t0p6_earlydense_z1401_rnnpaperdb_m80_v1.nohup.log" 2>&1 &
+```
+
+Current preferred route for a usable autoregressive RNN baseline is the
+relative-shape task with a shorter front-10-cm rollout:
+
+```bash
+source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
+cd "$AI_AR_HCF_REPO/rnnnonlinear-master/rnnnonlinear-master"
+
+python3 prepare_luna_data.py \
+  --input-dir "$LUNA_LEGACY_DATA_ROOT/processed_t0p6_earlydense_z1401_v1" \
+  --output "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/simulations/luna_t0p6_earlydense_z10cm_101_conditional.mat" \
+  --output-format hdf5 \
+  --compression gzip \
+  --include-features \
+  --z-max-fraction 0.2 \
+  --z-target-points 101 \
+  --log-file "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/prepare_t0p6_earlydense_z10cm_101_conditional.log"
+
+nohup python3 train_luna_rnn.py \
+  --data "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/simulations/luna_t0p6_earlydense_z10cm_101_conditional.mat" \
+  --output-dir "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_direct_z10cm_101_perminmax_stable_v1" \
+  --training-mode scheduled_sampling \
+  --conditioning features_z \
+  --prediction-target direct \
+  --output-activation sigmoid \
+  --rollout-steps-start 100 \
+  --rollout-steps-end 100 \
+  --scheduled-sampling-start 0.0 \
+  --scheduled-sampling-end 0.05 \
+  --rollout-start-mode mixed \
+  --zero-start-prob 0.7 \
+  --no-detach-feedback \
+  --window-size 10 \
+  --hidden 250 \
+  --learning-rate 5e-5 \
+  --epochs 30 \
+  --batch-size 16 \
+  --eval-autoregressive-every 1 \
+  --eval-autoregressive-samples 256 \
+  --autoregressive-eval-batch-size 8 \
+  --early-stop-on-autoreg \
+  --autoreg-patience 8 \
+  --checkpoint-every 1 \
+  --log-file "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_direct_z10cm_101_perminmax_stable_v1/train.log" \
+  > "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_direct_z10cm_101_perminmax_stable_v1.nohup.log" 2>&1 &
+```

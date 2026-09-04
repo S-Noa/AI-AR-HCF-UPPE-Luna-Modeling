@@ -1,6 +1,6 @@
 # Project state
 
-Last updated: 2026-09-03
+Last updated: 2026-09-04
 
 ## Current objective
 
@@ -35,6 +35,10 @@ Prepare the project for reliable continued development while preserving the curr
 - Early-10-cm scheduled-sampling training completed; it selected the best autoregressive checkpoint from epoch 1 and reached positive final autoregressive R2, suggesting that the full z1401 failure is strongly affected by long rollout length.
 - RNN preprocessing now has a planned Salmela-style `rnn_paper_db` route: global training-set max, dB compression, `-55 dB` floor, and `[0,1]` targets.
 - RNN training now has a planned autoregressive-aware route using residual prediction, curriculum rollout horizon, mixed zero/random rollout starts, and early stopping by autoregressive R2.
+- The full `rnn_paper_db` early-dense preprocessing completed, but diagnostics showed that `-55 dB` global-max scaling is too sparse for Luna AR-HCF spectra: about two thirds of temporal target values and nearly 88% of final-spectrum values are clipped to zero.
+- A 300-sample `rnn_paper_db` diagnostic with `-80 dB` floor reduced zero clipping, but the residual smoke test still had negative autoregressive R2. Treat `rnn_paper_db` as a diagnostic route, not the current best RNN baseline.
+- The current most promising usable RNN baseline route is `per_sample_minmax`, direct `S(z+1)` prediction with sigmoid output, front-10-cm z downsampling, autoregressive checkpoint selection, and low scheduled-sampling feedback.
+- `train_luna_rnn.py` now supports `--no-detach-feedback` for differentiable truncated rollout feedback. Early smoke tests did not immediately beat the previous detached-feedback `z10cm_201` result, so use it experimentally rather than as the default.
 
 ## Active manuscript and presentation files
 
@@ -49,8 +53,8 @@ Binary presentation and submission files are intentionally not tracked in normal
 
 ## Next candidates
 
-1. Run the `rnn_paper_db` preprocessing route on the filtered t0p6 early-dense z1401 subset.
-2. Export `z10cm_101`, `z10cm_201`, and `z50cm_501` RNN datasets from the `rnn_paper_db` processed data.
-3. Compare direct versus residual scheduled-sampling RNN on `z10cm_101` first.
+1. Let `/mnt/Luna.jl-master/rnn_earlydense/results_direct_z10cm_101_perminmax_stable_v1` finish and judge it by full autoregressive R2, not stepwise R2.
+2. If `z10cm_101` is positive and stable, run the same direct/sigmoid setting on `z10cm_201`; if it fails, report RNN as a short-range baseline only.
+3. Keep `rnn_paper_db` for normalization diagnostics unless a less sparse floor/reference setting clearly improves autoregressive rollout.
 4. Compare temporal CNN and temporal Transformer under the same early-dense and temporal-selection metrics.
 5. Start forward-surrogate-based inverse design before training a standalone inverse model.

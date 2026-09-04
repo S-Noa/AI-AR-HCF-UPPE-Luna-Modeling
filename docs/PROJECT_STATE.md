@@ -44,6 +44,11 @@ Prepare the project for reliable continued development while preserving the curr
 - `results_warm_scheduled_z10cm_101_perminmax_v1` completed but did not improve rollout stability: full-test `autoregressive_r2=0.2830`, `autoregressive_final_r2=0.1686`.
 - `results_direct_z10cm_51_perminmax_stable_v1` is the current best short RNN autoregressive baseline: full-test `autoregressive_r2=0.4296`, `autoregressive_final_r2=0.1774`, selected epoch 2.
 - The next RNN question is now attribution: verify whether autoregressive failure comes mainly from our PyTorch adaptation or from Luna data difficulty by cross-running original RNNnonlinear data/code and low-dimensional Luna tasks.
+- RNN attribution runs started on cloud:
+  - PyTorch Luna RNN on low-dimensional Luna `z10cm_51_lambda251` completed/started first; `z10cm_101_lambda251` is the next queued comparison.
+  - Original RNNnonlinear archive download from Zenodo `4304771` is running under `/mnt/Luna.jl-master/rnn_original_data`.
+  - Isolated original-code environment setup is running under `/mnt/Luna.jl-master/rnn_original_code_env` using Miniconda + Python 3.7 + TensorFlow 1.x/Keras 2.x.
+  - Original-code watchers are queued for two tasks: original code on original data, and original code on Luna `z10cm_51_lambda251` mat5 data.
 
 ## Active manuscript and presentation files
 

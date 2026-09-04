@@ -63,6 +63,12 @@ Use this file as the lightweight memory for model and data experiments. Keep eac
   - If PyTorch code succeeds on original data, code migration is mostly sound.
   - If low-dimensional Luna succeeds but full Luna fails, the bottleneck is rollout length/output dimensionality.
   - If low-dimensional Luna still fails, the AR-HCF UPPE trajectory distribution is harder than the original NLSE/GNLSE tasks.
+- Cloud execution started:
+  - `/mnt/Luna.jl-master/rnn_earlydense/run_luna_lambda251_attribution.sh` exports and trains Luna `lambda251` tasks.
+  - `/mnt/Luna.jl-master/rnn_original_data/run_original_data_attribution.sh` downloads Zenodo `RNNnonlinear_v2.zip`, then converts original `.mat` data for PyTorch training.
+  - `/mnt/Luna.jl-master/rnn_original_code_env/setup_tf1_env.sh` builds an isolated Python 3.7 / TensorFlow 1.x / Keras 2.x environment for unmodified original-code experiments.
+  - `/mnt/Luna.jl-master/rnn_original_code_env/run_original_code_luna_lambda251.sh` runs original `load_data.py`, `make_RNN_model.py`, and `pred_evo.py` on Luna `z10cm_51_lambda251` mat5 data after the environment is ready.
+  - `/mnt/Luna.jl-master/rnn_original_code_env/run_original_code_original_data.sh` runs original code on extracted Zenodo data after both the environment and data archive are ready.
 
 ## Early-dense data
 

@@ -773,6 +773,22 @@ If dependency setup is not available, use the pretrained `.h5` networks and
 `predRNN.py` inside the same isolated environment to reproduce the published
 autoregressive figures first.
 
+Cloud watcher scripts currently used for original-code attribution:
+
+```bash
+# Build isolated Python 3.7 / TF1 / Keras2 environment.
+nohup /mnt/Luna.jl-master/rnn_original_code_env/setup_tf1_env.sh \
+  > /mnt/Luna.jl-master/rnn_original_code_env/setup_tf1_env.log 2>&1 &
+
+# Original code on Luna z10cm_51_lambda251 mat5 data.
+nohup /mnt/Luna.jl-master/rnn_original_code_env/run_original_code_luna_lambda251.sh \
+  > /mnt/Luna.jl-master/rnn_original_code_env/run_original_code_luna_lambda251.log 2>&1 &
+
+# Original code on Zenodo original data, after archive download/extraction.
+nohup /mnt/Luna.jl-master/rnn_original_code_env/run_original_code_original_data.sh \
+  > /mnt/Luna.jl-master/rnn_original_code_env/run_original_code_original_data.log 2>&1 &
+```
+
 ### Convert original RNNnonlinear `.mat` data for PyTorch training
 
 After downloading an original Zenodo `.mat` file, convert it without changing

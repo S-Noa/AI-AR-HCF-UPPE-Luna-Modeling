@@ -48,6 +48,7 @@ Use this file as the lightweight memory for model and data experiments. Keep eac
 - Added `--no-detach-feedback` to `train_luna_rnn.py` so recursive feedback can be trained with differentiable truncated BPTT. A small `z10cm_201` smoke improved slowly but remained negative after 5 epochs, so this is not yet the default route.
 - Completed candidate baseline: `/mnt/Luna.jl-master/rnn_earlydense/results_direct_z10cm_101_perminmax_stable_v1`, using per-sample min-max targets, direct sigmoid prediction, 101 front-10-cm z points, low scheduled-sampling feedback, and autoregressive checkpoint selection. It selected epoch 5 and reached full-test `autoregressive_r2=0.4174`, with positive but modest `autoregressive_final_r2=0.1584`.
 - Active next comparison: run the same stable direct/sigmoid route on the harder `z10cm_201` task, with `--grad-clip 1.0`.
+- Queued follow-up experiments: (1) `z10cm_101` one-step warm-start followed by low-feedback scheduled sampling, and (2) `z10cm_51` direct scheduled sampling to test whether a coarser z grid makes autoregressive rollout substantially more stable.
 - Key metrics: `stepwise_r2`, `autoregressive_r2`, final autoregressive spectrum quality, and temporal evolution plots.
 
 ## Early-dense data

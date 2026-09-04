@@ -633,3 +633,103 @@ nohup python3 train_luna_rnn.py \
   --log-file "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_direct_z10cm_201_perminmax_stable_v1/train.log" \
   > "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_direct_z10cm_201_perminmax_stable_v1.nohup.log" 2>&1 &
 ```
+
+Queued follow-up after the 201-point run: warm-start the 101-point model and
+test a coarser 51-point front-10-cm rollout.
+
+```bash
+source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
+cd "$AI_AR_HCF_REPO/rnnnonlinear-master/rnnnonlinear-master"
+
+# Export the coarser z10cm_51 dataset if missing.
+python3 prepare_luna_data.py \
+  --input-dir "$LUNA_LEGACY_DATA_ROOT/processed_t0p6_earlydense_z1401_v1" \
+  --output "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/simulations/luna_t0p6_earlydense_z10cm_51_conditional.mat" \
+  --output-format hdf5 \
+  --compression gzip \
+  --include-features \
+  --z-max-fraction 0.2 \
+  --z-target-points 51 \
+  --log-file "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/prepare_t0p6_earlydense_z10cm_51_conditional.log"
+
+# A1: short one-step warm-start on z10cm_101.
+python3 train_luna_rnn.py \
+  --data "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/simulations/luna_t0p6_earlydense_z10cm_101_conditional.mat" \
+  --output-dir "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_onestep_z10cm_101_perminmax_warm_v1" \
+  --training-mode conditional_legacy \
+  --conditioning features_z \
+  --prediction-target direct \
+  --output-activation sigmoid \
+  --window-size 10 \
+  --hidden 250 \
+  --learning-rate 1e-4 \
+  --grad-clip 1.0 \
+  --epochs 5 \
+  --batch-size 128 \
+  --eval-autoregressive-every 1 \
+  --eval-autoregressive-samples 128 \
+  --autoregressive-eval-batch-size 8 \
+  --checkpoint-every 1 \
+  --log-file "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_onestep_z10cm_101_perminmax_warm_v1/train.log"
+
+# A2: scheduled sampling initialized from the one-step checkpoint.
+nohup python3 train_luna_rnn.py \
+  --data "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/simulations/luna_t0p6_earlydense_z10cm_101_conditional.mat" \
+  --output-dir "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_warm_scheduled_z10cm_101_perminmax_v1" \
+  --training-mode scheduled_sampling \
+  --conditioning features_z \
+  --init-from "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_onestep_z10cm_101_perminmax_warm_v1/best_stepwise_model.pth" \
+  --prediction-target direct \
+  --output-activation sigmoid \
+  --rollout-steps-start 20 \
+  --rollout-steps-end 60 \
+  --scheduled-sampling-start 0.0 \
+  --scheduled-sampling-end 0.02 \
+  --rollout-start-mode mixed \
+  --zero-start-prob 0.8 \
+  --no-detach-feedback \
+  --window-size 10 \
+  --hidden 250 \
+  --learning-rate 3e-5 \
+  --grad-clip 1.0 \
+  --epochs 30 \
+  --batch-size 16 \
+  --eval-autoregressive-every 1 \
+  --eval-autoregressive-samples 256 \
+  --autoregressive-eval-batch-size 8 \
+  --early-stop-on-autoreg \
+  --autoreg-patience 8 \
+  --checkpoint-every 1 \
+  --log-file "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_warm_scheduled_z10cm_101_perminmax_v1/train.log" \
+  > "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_warm_scheduled_z10cm_101_perminmax_v1.nohup.log" 2>&1 &
+
+# B: coarser z10cm_51 direct scheduled-sampling baseline.
+nohup python3 train_luna_rnn.py \
+  --data "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/simulations/luna_t0p6_earlydense_z10cm_51_conditional.mat" \
+  --output-dir "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_direct_z10cm_51_perminmax_stable_v1" \
+  --training-mode scheduled_sampling \
+  --conditioning features_z \
+  --prediction-target direct \
+  --output-activation sigmoid \
+  --rollout-steps-start 50 \
+  --rollout-steps-end 50 \
+  --scheduled-sampling-start 0.0 \
+  --scheduled-sampling-end 0.05 \
+  --rollout-start-mode mixed \
+  --zero-start-prob 0.8 \
+  --no-detach-feedback \
+  --window-size 10 \
+  --hidden 250 \
+  --learning-rate 5e-5 \
+  --grad-clip 1.0 \
+  --epochs 30 \
+  --batch-size 16 \
+  --eval-autoregressive-every 1 \
+  --eval-autoregressive-samples 256 \
+  --autoregressive-eval-batch-size 8 \
+  --early-stop-on-autoreg \
+  --autoreg-patience 8 \
+  --checkpoint-every 1 \
+  --log-file "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_direct_z10cm_51_perminmax_stable_v1/train.log" \
+  > "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_direct_z10cm_51_perminmax_stable_v1.nohup.log" 2>&1 &
+```

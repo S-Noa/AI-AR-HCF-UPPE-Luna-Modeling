@@ -40,6 +40,8 @@ Prepare the project for reliable continued development while preserving the curr
 - The current most promising usable RNN baseline route is `per_sample_minmax`, direct `S(z+1)` prediction with sigmoid output, front-10-cm z downsampling, autoregressive checkpoint selection, low scheduled-sampling feedback, and optional gradient clipping.
 - `train_luna_rnn.py` now supports `--no-detach-feedback` for differentiable truncated rollout feedback. Early smoke tests did not immediately beat the previous detached-feedback `z10cm_201` result, so use it experimentally rather than as the default.
 - `results_direct_z10cm_101_perminmax_stable_v1` completed with positive but modest autoregressive performance: full-test `autoregressive_r2=0.4174`, `autoregressive_final_r2=0.1584`, selected epoch 5, and early stopping at epoch 13.
+- `results_direct_z10cm_201_perminmax_stable_v1` is running as the harder 201-point front-10-cm comparison.
+- A queued cloud script will run two additional short-baseline experiments after active training finishes: warm-start scheduled `z10cm_101` and direct scheduled `z10cm_51`.
 
 ## Active manuscript and presentation files
 
@@ -54,8 +56,8 @@ Binary presentation and submission files are intentionally not tracked in normal
 
 ## Next candidates
 
-1. Run `/mnt/Luna.jl-master/rnn_earlydense/results_direct_z10cm_201_perminmax_stable_v1` and judge it by full autoregressive R2, not stepwise R2.
-2. If `z10cm_201` improves over `z10cm_101`, consider `z50cm_501`; if it fails, report RNN as a short-range baseline only.
+1. Let `/mnt/Luna.jl-master/rnn_earlydense/results_direct_z10cm_201_perminmax_stable_v1` finish and judge it by full autoregressive R2, not stepwise R2.
+2. Let `/mnt/Luna.jl-master/rnn_earlydense/run_next_short_rnn_baselines.sh` run the warm-start `z10cm_101` and coarse `z10cm_51` experiments.
 3. Keep `rnn_paper_db` for normalization diagnostics unless a less sparse floor/reference setting clearly improves autoregressive rollout.
 4. Compare temporal CNN and temporal Transformer under the same early-dense and temporal-selection metrics.
 5. Start forward-surrogate-based inverse design before training a standalone inverse model.

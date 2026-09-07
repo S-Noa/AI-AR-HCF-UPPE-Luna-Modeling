@@ -1,6 +1,6 @@
 # Project state
 
-Last updated: 2026-09-04
+Last updated: 2026-09-07
 
 ## Current objective
 
@@ -49,6 +49,12 @@ Prepare the project for reliable continued development while preserving the curr
   - Original RNNnonlinear archive download from Zenodo `4304771` is running under `/mnt/Luna.jl-master/rnn_original_data`.
   - Isolated original-code environment setup is running under `/mnt/Luna.jl-master/rnn_original_code_env` using Miniconda + Python 3.7 + TensorFlow 1.x/Keras 2.x.
   - Original-code watchers are queued for two tasks: original code on original data, and original code on Luna `z10cm_51_lambda251` mat5 data.
+- Original Keras RNN code on low-dimensional Luna data completed. On `z10cm_51_lambda251`, it still shows high stepwise R2 but weak autoregressive R2:
+  - `per_sample_minmax`: best among 1/3/5 epoch checks is `autoregressive_r2=0.3161` at 3 epochs.
+  - `rnn_paper_db`: best among 1/3/5 epoch checks is `autoregressive_r2=0.0947` at 3 epochs.
+  This reduces the probability that the Luna autoregressive failure is caused only by the PyTorch port.
+- A stricter preprocessing attribution run is now active: `export_luna_raw_power_mat.py` exports Luna raw linear power maps, then original `load_data.py` applies its own `normalization='dBm'`. Cloud run script: `/mnt/Luna.jl-master/rnn_original_code_env/run_raw_power_dBm_luna_lambda251.sh`.
+- Original Zenodo data download is being retried with resumable `curl -C -` because the previous `wget` run stopped at a partial `123M` zip. Cloud run script: `/mnt/Luna.jl-master/rnn_original_data/run_original_data_attribution_resumable.sh`.
 
 ## Active manuscript and presentation files
 
@@ -64,7 +70,8 @@ Binary presentation and submission files are intentionally not tracked in normal
 ## Next candidates
 
 1. Run the RNN attribution matrix: original code on original data, PyTorch Luna RNN code on original data, and PyTorch Luna RNN code on low-dimensional Luna `lambda251` tasks.
-2. Use `z10cm_51` or `z10cm_101` only as short-horizon RNN baselines unless the attribution runs show a fixable code mismatch.
-3. Keep `rnn_paper_db` for normalization diagnostics unless a less sparse floor/reference setting clearly improves autoregressive rollout.
+2. Check whether the raw-power plus original `load_data(..., 'dBm')` run improves Luna autoregressive R2. If it does not, treat Luna data complexity as the main cause.
+3. Use `z10cm_51` or `z10cm_101` only as short-horizon RNN baselines unless the attribution runs show a fixable code mismatch.
+4. Keep `rnn_paper_db` for normalization diagnostics unless a less sparse floor/reference setting clearly improves autoregressive rollout.
 4. Compare temporal CNN and temporal Transformer under the same early-dense and temporal-selection metrics.
 5. Start forward-surrogate-based inverse design before training a standalone inverse model.

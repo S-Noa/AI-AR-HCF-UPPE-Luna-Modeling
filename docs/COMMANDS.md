@@ -25,6 +25,10 @@ julia --project=. -e "using Pkg; Pkg.status()"
 Use the Git-synced cloud code checkout, while keeping large legacy datasets under
 `/mnt/Luna.jl-master`.
 
+Cloud long-running jobs should run in the background with explicit log files.
+Use foreground commands only for quick smoke tests, status checks, and help
+output.
+
 ```bash
 source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
 cd "$LUNA_PROJECT"
@@ -38,6 +42,47 @@ PyTorch can find the Corex CUDA runtime:
 source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
 cd "$LUNA_PROJECT/examples/simple_interface"
 python3 train_mlp.py --help
+```
+
+## Check cloud RNN attribution status
+
+```bash
+ssh -o BatchMode=yes -p 42054 root@ic.h3i.buaa.edu.cn 'bash -lc "
+ps aux | grep -E \"run_raw_power_dBm|export_luna_raw_power|train_eval.py|run_original_data_attribution_resumable|curl|train_luna_rnn\" | grep -v grep || true
+find /mnt/Luna.jl-master/rnn_original_code_env/raw_power_dBm_luna_lambda251 -path \"*/results/metrics.json\" -print 2>/dev/null | sort | while read p; do echo --- \$p ---; cat \"\$p\"; done
+tail -n 40 /mnt/Luna.jl-master/rnn_original_code_env/export_luna_raw_power_z10cm_51_lambda251.log 2>/dev/null || true
+tail -n 40 /mnt/Luna.jl-master/rnn_original_data/run_original_data_attribution_resumable.log 2>/dev/null || true
+ls -lh /mnt/Luna.jl-master/rnn_original_data/RNNnonlinear_v2.zip 2>/dev/null || true
+"'
+```
+
+## Export Luna raw power for original RNN dBm preprocessing
+
+This is an attribution experiment, not the default Luna RNN preprocessing route.
+It exports positive linear power and lets the original `load_data.py` apply
+`normalization='dBm'`.
+
+```bash
+source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
+cd "$AI_AR_HCF_REPO/rnnnonlinear-master/rnnnonlinear-master"
+
+nohup python3 export_luna_raw_power_mat.py \
+  --input-dir "$LUNA_LEGACY_DATA_ROOT/training_data_ar_t0p6_earlydense_z1401_links" \
+  --output "$LUNA_LEGACY_DATA_ROOT/rnn_original_code_env/luna_t0p6_earlydense_z10cm_51_lambda251_rawpower_originalcode.mat" \
+  --sample-filter earlydense \
+  --target-points 1000 \
+  --lambda-target-points 251 \
+  --z-max-fraction 0.2 \
+  --z-target-points 51 \
+  --log-file "$LUNA_LEGACY_DATA_ROOT/rnn_original_code_env/export_luna_raw_power_z10cm_51_lambda251.log" \
+  > "$LUNA_LEGACY_DATA_ROOT/rnn_original_code_env/export_luna_raw_power_z10cm_51_lambda251.nohup.log" 2>&1 &
+```
+
+## Resume original RNNnonlinear Zenodo download
+
+```bash
+nohup /mnt/Luna.jl-master/rnn_original_data/run_original_data_attribution_resumable.sh >/dev/null 2>&1 &
+tail -f /mnt/Luna.jl-master/rnn_original_data/run_original_data_attribution_resumable.log
 ```
 
 ## Visualize all extreme samples with z zooms

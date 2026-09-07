@@ -70,6 +70,30 @@ Use this file as the lightweight memory for model and data experiments. Keep eac
   - `/mnt/Luna.jl-master/rnn_original_code_env/run_original_code_luna_lambda251.sh` runs original `load_data.py`, `make_RNN_model.py`, and `pred_evo.py` on Luna `z10cm_51_lambda251` mat5 data after the environment is ready.
   - `/mnt/Luna.jl-master/rnn_original_code_env/run_original_code_original_data.sh` runs original code on extracted Zenodo data after both the environment and data archive are ready.
 
+### Original Keras code on Luna low-dimensional data
+
+- Completed date: 2026-09-07 status check.
+- Data: Luna early-dense `z10cm_51_lambda251`, `data=(7780, 251, 51)`, train/test evolutions `7002/778`, `window_size=10`.
+- Code path: original Keras-style `load_data.py`, `make_RNN_model.py`, and `pred_evo.py` inside `/mnt/Luna.jl-master/rnn_original_code_env/epoch_sweep_luna_lambda251`.
+- Result summary:
+  - `per_sample_minmax`, 1 epoch: `stepwise_r2=0.9600`, `autoregressive_r2=0.3082`.
+  - `per_sample_minmax`, 3 epochs: `stepwise_r2=0.9743`, `autoregressive_r2=0.3161`.
+  - `per_sample_minmax`, 5 epochs: `stepwise_r2=0.9764`, `autoregressive_r2=0.2809`.
+  - `rnn_paper_db`, 1 epoch: `stepwise_r2=0.9656`, `autoregressive_r2=-0.1442`.
+  - `rnn_paper_db`, 3 epochs: `stepwise_r2=0.9780`, `autoregressive_r2=0.0947`.
+  - `rnn_paper_db`, 5 epochs: `stepwise_r2=0.9837`, `autoregressive_r2=-0.0537`.
+- Interpretation: original Keras code also shows the same pattern on Luna data: teacher-forced one-step prediction is high, but autoregressive rollout remains weak and often worsens with more one-step training. This points more strongly to task/data dynamics than to only a PyTorch implementation bug.
+
+### Raw-power plus original dBm preprocessing check
+
+- Started: 2026-09-07.
+- Purpose: test whether previous Luna-to-RNN preprocessing still differs from the original Salmela pipeline.
+- Method: export Luna HDF5 fields as raw positive linear power using `export_luna_raw_power_mat.py`, then run original `load_data(..., normalization='dBm')` so the original code performs global-max normalization, dB compression, clipping, and `[0,1]` scaling.
+- Cloud script: `/mnt/Luna.jl-master/rnn_original_code_env/run_raw_power_dBm_luna_lambda251.sh`.
+- Output data: `/mnt/Luna.jl-master/rnn_original_code_env/luna_t0p6_earlydense_z10cm_51_lambda251_rawpower_originalcode.mat`.
+- Planned epochs: 1, 3, and 5.
+- Interpretation rule: if this run remains around the previous `0.3` autoregressive R2 level, preprocessing mismatch is not the main cause; if it improves sharply, the Luna RNN route should use raw-power export plus original dBm scaling.
+
 ## Early-dense data
 
 - Goal: improve early propagation details in the first centimeters.

@@ -54,6 +54,7 @@ Prepare the project for reliable continued development while preserving the curr
   - `rnn_paper_db`: best among 1/3/5 epoch checks is `autoregressive_r2=0.0947` at 3 epochs.
   This reduces the probability that the Luna autoregressive failure is caused only by the PyTorch port.
 - A stricter preprocessing attribution run is now active: `export_luna_raw_power_mat.py` exports Luna raw linear power maps, then original `load_data.py` applies its own `normalization='dBm'`. Cloud run script: `/mnt/Luna.jl-master/rnn_original_code_env/run_raw_power_dBm_luna_lambda251.sh`.
+- A follow-up Luna-specific raw-power preprocessing sweep is running under `/mnt/Luna.jl-master/rnn_preprocess_experiments`. It exports the same front-10-cm / 51-z / 251-wavelength Luna raw-power task with less aggressive RNN targets: `bandwise_db_p99p9_floor80`, `per_sample_db_p99p5_floor80`, `per_sample_db_p99p9_floor80`, `per_sample_db_max_floor80`, and `log1p_p99p9`. A 300-sample smoke export showed that `bandwise_db_p99p9_floor80` reduces the fraction of exact-zero targets to about `22%`, compared with about `61%` for original global `-55 dB` dBm scaling.
 - Original Zenodo data download is being retried with resumable `curl -C -` because the previous `wget` run stopped at a partial `123M` zip. Cloud run script: `/mnt/Luna.jl-master/rnn_original_data/run_original_data_attribution_resumable.sh`.
 
 ## Active manuscript and presentation files
@@ -73,5 +74,6 @@ Binary presentation and submission files are intentionally not tracked in normal
 2. Check whether the raw-power plus original `load_data(..., 'dBm')` run improves Luna autoregressive R2. If it does not, treat Luna data complexity as the main cause.
 3. Use `z10cm_51` or `z10cm_101` only as short-horizon RNN baselines unless the attribution runs show a fixable code mismatch.
 4. Keep `rnn_paper_db` for normalization diagnostics unless a less sparse floor/reference setting clearly improves autoregressive rollout.
-4. Compare temporal CNN and temporal Transformer under the same early-dense and temporal-selection metrics.
-5. Start forward-surrogate-based inverse design before training a standalone inverse model.
+5. Compare the relative-db preprocessing sweep against the current best `per_sample_minmax` short RNN baseline.
+6. Compare temporal CNN and temporal Transformer under the same early-dense and temporal-selection metrics.
+7. Start forward-surrogate-based inverse design before training a standalone inverse model.

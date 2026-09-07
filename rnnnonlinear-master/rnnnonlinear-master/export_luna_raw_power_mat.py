@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
-"""Export Luna HDF5 spectra as raw power maps for original RNNnonlinear code.
+"""Export Luna HDF5 spectra as raw power maps for RNNnonlinear-style code.
 
 The Salmela RNN baseline applies its own global-max/dB normalization inside
 ``load_data.py``.  This helper keeps the Luna side as close as possible to that
-interface by exporting positive linear power:
+interface by default by exporting positive linear power:
 
     data: (num_evolutions, n_lambda, n_z)
+
+It can also write RNN-ready normalized targets for attribution experiments.  In
+that case the output is already scaled to [0, 1], so the downstream original
+RNN loader should use ``normalization='none'``.
 
 Only light resampling is performed: wavelength interpolation to a fixed
 200--2500 nm grid, optional uniform wavelength downsampling, and optional
@@ -47,6 +51,32 @@ def parse_args():
                         help="Keep z_norm <= this value, e.g. 0.2 for first 10 cm of 50 cm")
     parser.add_argument("--z-target-points", type=int, default=None,
                         help="Optional uniform z downsampling after z-prefix selection")
+    parser.add_argument(
+        "--export-normalization",
+        choices=["raw_linear_power", "global_db", "per_sample_db", "bandwise_db", "log1p"],
+        default="raw_linear_power",
+        help=(
+            "Output normalization. raw_linear_power preserves positive power; "
+            "the other modes export [0,1] RNN targets directly."
+        ),
+    )
+    parser.add_argument("--db-floor", type=float, default=-80.0,
+                        help="Lower dB floor for *_db normalization modes")
+    parser.add_argument(
+        "--reference-percentile",
+        type=float,
+        default=99.9,
+        help="Percentile reference for per_sample_db, bandwise_db, and log1p",
+    )
+    parser.add_argument(
+        "--band-boundaries-nm",
+        nargs="+",
+        type=float,
+        default=[200.0, 700.0, 1200.0, 1800.0, 2500.0],
+        help="Band boundaries in nm for bandwise_db",
+    )
+    parser.add_argument("--eps", type=float, default=1e-30,
+                        help="Small positive floor before logarithms")
     parser.add_argument("--log-file", default=None)
     parser.add_argument("--log-level", choices=["DEBUG", "INFO", "WARNING"], default="INFO")
     return parser.parse_args()
@@ -173,6 +203,111 @@ def field_as_z_lambda_power(field, z, omega, target_wavelength_m, z_indices):
     return np.stack(selected, axis=1)  # (n_lambda, n_z)
 
 
+def safe_percentile(values, percentile):
+    positive = np.asarray(values, dtype=np.float64)
+    positive = positive[np.isfinite(positive) & (positive > 0)]
+    if positive.size == 0:
+        return 1.0
+    reference = float(np.percentile(positive, percentile))
+    return reference if reference > 0 else float(np.max(positive))
+
+
+def normalize_db(data, reference, db_floor, eps):
+    if reference <= 0:
+        raise ValueError("dB normalization reference must be positive")
+    if db_floor >= 0:
+        raise ValueError("--db-floor must be negative")
+    db = 10.0 * np.log10(np.maximum(data, eps) / reference)
+    db = np.clip(db, db_floor, 0.0)
+    return ((db - db_floor) / (-db_floor)).astype(np.float32, copy=False)
+
+
+def apply_export_normalization(data, target_wavelength_nm, args):
+    """Normalize output data while keeping shape (N, n_lambda, n_z)."""
+    mode = args.export_normalization
+    stats = {"export_normalization": mode}
+    data = np.asarray(data, dtype=np.float32)
+    if mode == "raw_linear_power":
+        stats.update({
+            "target_min": float(np.min(data)),
+            "target_max": float(np.max(data)),
+            "target_fraction_le_0": float(np.mean(data <= 0)),
+            "target_fraction_le_0p1": float(np.mean(data <= 0.1)),
+        })
+        return data, stats
+
+    if mode == "global_db":
+        reference = float(np.max(data))
+        out = normalize_db(data, reference, args.db_floor, args.eps)
+        stats.update({"reference": reference, "db_floor": args.db_floor, "eps": args.eps})
+    elif mode == "per_sample_db":
+        out = np.empty_like(data, dtype=np.float32)
+        refs = np.empty(data.shape[0], dtype=np.float64)
+        for i in range(data.shape[0]):
+            refs[i] = safe_percentile(data[i], args.reference_percentile)
+            out[i] = normalize_db(data[i], refs[i], args.db_floor, args.eps)
+        stats.update({
+            "reference_percentile": args.reference_percentile,
+            "reference_min": float(np.min(refs)),
+            "reference_median": float(np.median(refs)),
+            "reference_max": float(np.max(refs)),
+            "db_floor": args.db_floor,
+            "eps": args.eps,
+        })
+    elif mode == "bandwise_db":
+        boundaries = np.asarray(args.band_boundaries_nm, dtype=np.float64)
+        if boundaries.ndim != 1 or boundaries.size < 2:
+            raise ValueError("--band-boundaries-nm must contain at least two values")
+        if np.any(np.diff(boundaries) <= 0):
+            raise ValueError("--band-boundaries-nm must be strictly increasing")
+        out = np.empty_like(data, dtype=np.float32)
+        refs = np.zeros((data.shape[0], boundaries.size - 1), dtype=np.float64)
+        for bi in range(boundaries.size - 1):
+            lo, hi = boundaries[bi], boundaries[bi + 1]
+            if bi == boundaries.size - 2:
+                mask = (target_wavelength_nm >= lo) & (target_wavelength_nm <= hi)
+            else:
+                mask = (target_wavelength_nm >= lo) & (target_wavelength_nm < hi)
+            if not np.any(mask):
+                raise ValueError(f"No wavelength points in band {lo}-{hi} nm")
+            for i in range(data.shape[0]):
+                refs[i, bi] = safe_percentile(data[i, mask, :], args.reference_percentile)
+                out[i, mask, :] = normalize_db(data[i, mask, :], refs[i, bi], args.db_floor, args.eps)
+        stats.update({
+            "reference_percentile": args.reference_percentile,
+            "band_boundaries_nm": boundaries.tolist(),
+            "reference_min": float(np.min(refs)),
+            "reference_median": float(np.median(refs)),
+            "reference_max": float(np.max(refs)),
+            "db_floor": args.db_floor,
+            "eps": args.eps,
+        })
+    elif mode == "log1p":
+        out = np.empty_like(data, dtype=np.float32)
+        refs = np.empty(data.shape[0], dtype=np.float64)
+        for i in range(data.shape[0]):
+            refs[i] = safe_percentile(data[i], args.reference_percentile)
+            out[i] = np.log1p(data[i] / refs[i]) / np.log1p(max(float(np.max(data[i])) / refs[i], 1.0))
+        out = np.clip(out, 0.0, 1.0).astype(np.float32, copy=False)
+        stats.update({
+            "reference_percentile": args.reference_percentile,
+            "reference_min": float(np.min(refs)),
+            "reference_median": float(np.median(refs)),
+            "reference_max": float(np.max(refs)),
+        })
+    else:
+        raise ValueError(f"Unsupported export normalization: {mode}")
+
+    stats.update({
+        "target_min": float(np.min(out)),
+        "target_max": float(np.max(out)),
+        "target_fraction_le_0": float(np.mean(out <= 0)),
+        "target_fraction_le_0p01": float(np.mean(out <= 0.01)),
+        "target_fraction_le_0p1": float(np.mean(out <= 0.1)),
+    })
+    return out, stats
+
+
 def main():
     args = parse_args()
     setup_logging(args.log_file, args.log_level)
@@ -218,6 +353,16 @@ def main():
         if (i + 1) % 250 == 0 or i + 1 == len(files):
             LOGGER.info("processed %d/%d files", i + 1, len(files))
 
+    LOGGER.info("applying export_normalization=%s", args.export_normalization)
+    data, norm_stats = apply_export_normalization(data, target_selected * 1e9, args)
+    LOGGER.info(
+        "normalized target stats: min=%.6g max=%.6g frac<=0=%.4f frac<=0.1=%.4f",
+        norm_stats.get("target_min", float("nan")),
+        norm_stats.get("target_max", float("nan")),
+        norm_stats.get("target_fraction_le_0", float("nan")),
+        norm_stats.get("target_fraction_le_0p1", float("nan")),
+    )
+
     Path(args.output).parent.mkdir(parents=True, exist_ok=True)
     LOGGER.info("saving mat5 data shape=%s dtype=%s size=%.2f MB",
                 data.shape, data.dtype, data.nbytes / 1024 / 1024)
@@ -235,7 +380,8 @@ def main():
         "data_shape": list(data.shape),
         "z_selected_points": int(z_indices.size),
         "lambda_selected_points": int(target_selected.size),
-        "normalization": "raw_linear_power",
+        "normalization": args.export_normalization,
+        "normalization_stats": norm_stats,
         "source_files_head": source_files[:10],
         "elapsed_seconds": time.time() - start,
     }

@@ -78,6 +78,82 @@ nohup python3 export_luna_raw_power_mat.py \
   > "$LUNA_LEGACY_DATA_ROOT/rnn_original_code_env/export_luna_raw_power_z10cm_51_lambda251.nohup.log" 2>&1 &
 ```
 
+## Luna-specific relative-dB preprocessing sweep for RNN
+
+This sweep keeps the same Luna raw-power source task as the original-dBm
+attribution run, but exports RNN-ready `[0,1]` targets directly. Use no
+additional downstream dB normalization for these `.mat` files.
+
+Check the active runner:
+
+```bash
+ssh -o BatchMode=yes -p 42054 root@ic.h3i.buaa.edu.cn 'bash -lc "
+ps -p \$(cat /mnt/Luna.jl-master/rnn_preprocess_experiments/run_relative_db_rnn_experiments.pid 2>/dev/null) -o pid,stat,etime,cmd 2>/dev/null || true
+tail -n 80 /mnt/Luna.jl-master/rnn_preprocess_experiments/logs/run_relative_db_rnn_experiments.log 2>/dev/null || true
+find /mnt/Luna.jl-master/rnn_preprocess_experiments/results -maxdepth 2 -name train.log -print 2>/dev/null | sort | while read p; do echo --- \$p ---; tail -n 20 \$p; done
+"'
+```
+
+The full runner is:
+
+```bash
+source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
+cd "$AI_AR_HCF_REPO/rnnnonlinear-master/rnnnonlinear-master"
+
+nohup "$LUNA_LEGACY_DATA_ROOT/rnn_preprocess_experiments/run_relative_db_rnn_experiments.sh" \
+  > "$LUNA_LEGACY_DATA_ROOT/rnn_preprocess_experiments/logs/run_relative_db_rnn_experiments.nohup.log" 2>&1 &
+```
+
+To export one variant manually:
+
+```bash
+python3 export_luna_raw_power_mat.py \
+  --input-dir "$LUNA_LEGACY_DATA_ROOT/training_data_ar_t0p6_earlydense_z1401_links" \
+  --output "$LUNA_LEGACY_DATA_ROOT/rnn_preprocess_experiments/mats/luna_z10cm_51_lambda251_bandwise_db_p99p9_floor80.mat" \
+  --sample-filter earlydense \
+  --target-points 1000 \
+  --lambda-target-points 251 \
+  --z-max-fraction 0.2 \
+  --z-target-points 51 \
+  --export-normalization bandwise_db \
+  --db-floor -80 \
+  --reference-percentile 99.9 \
+  --log-file "$LUNA_LEGACY_DATA_ROOT/rnn_preprocess_experiments/logs/export_bandwise_db_p99p9_floor80.log"
+```
+
+To train one exported variant manually:
+
+```bash
+python3 train_luna_rnn.py \
+  --data "$LUNA_LEGACY_DATA_ROOT/rnn_preprocess_experiments/mats/luna_z10cm_51_lambda251_bandwise_db_p99p9_floor80.mat" \
+  --output-dir "$LUNA_LEGACY_DATA_ROOT/rnn_preprocess_experiments/results/results_bandwise_db_p99p9_floor80" \
+  --training-mode scheduled_sampling \
+  --conditioning none \
+  --prediction-target direct \
+  --output-activation sigmoid \
+  --rollout-steps-start 10 \
+  --rollout-steps-end 41 \
+  --scheduled-sampling-start 0.0 \
+  --scheduled-sampling-end 0.05 \
+  --rollout-start-mode mixed \
+  --zero-start-prob 0.8 \
+  --window-size 10 \
+  --hidden 250 \
+  --learning-rate 5e-5 \
+  --epochs 50 \
+  --batch-size 16 \
+  --train-evolutions 7002 \
+  --test-evolutions 778 \
+  --eval-autoregressive-every 1 \
+  --eval-autoregressive-samples 128 \
+  --autoregressive-eval-batch-size 8 \
+  --early-stop-on-autoreg \
+  --autoreg-patience 8 \
+  --checkpoint-every 1 \
+  --grad-clip 1.0 \
+  --log-file "$LUNA_LEGACY_DATA_ROOT/rnn_preprocess_experiments/results/results_bandwise_db_p99p9_floor80/train.log"
+```
+
 ## Resume original RNNnonlinear Zenodo download
 
 ```bash

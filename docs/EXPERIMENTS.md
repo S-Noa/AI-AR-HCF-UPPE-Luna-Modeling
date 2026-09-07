@@ -94,6 +94,24 @@ Use this file as the lightweight memory for model and data experiments. Keep eac
 - Planned epochs: 1, 3, and 5.
 - Interpretation rule: if this run remains around the previous `0.3` autoregressive R2 level, preprocessing mismatch is not the main cause; if it improves sharply, the Luna RNN route should use raw-power export plus original dBm scaling.
 
+### Luna-specific raw-power preprocessing sweep
+
+- Started: 2026-09-07.
+- Goal: find a preprocessing that keeps Luna raw-power spectra RNN-friendly without copying the original global `-55 dB` scaling too literally.
+- Code change: `export_luna_raw_power_mat.py` now supports `--export-normalization` values `raw_linear_power`, `global_db`, `per_sample_db`, `bandwise_db`, and `log1p`. Non-raw modes export `[0,1]` targets directly, so downstream RNN training should use no additional normalization.
+- Fixed task: t0p6 early-dense, front `10 cm`, `51` z points, `251` wavelength points over `200--2500 nm`.
+- Smoke export on 300 samples:
+  - `per_sample_db_p99p9_floor80`: `frac<=0=0.3716`, `frac<=0.1=0.4120`.
+  - `per_sample_db_max_floor80`: `frac<=0=0.3779`, `frac<=0.1=0.4189`.
+  - `per_sample_db_p99p5_floor80`: `frac<=0=0.3601`, `frac<=0.1=0.3984`.
+  - `bandwise_db_p99p9_floor80`: `frac<=0=0.2244`, `frac<=0.1=0.2545`.
+  - `log1p_p99p9`: `frac<=0=0.0120`, but `frac<=0.1=0.9385`, so most target values are compressed near zero.
+- Cloud runner: `/mnt/Luna.jl-master/rnn_preprocess_experiments/run_relative_db_rnn_experiments.sh`.
+- Active PID when launched: `44195`.
+- Priority order: `bandwise_db_p99p9_floor80`, then `per_sample_db_p99p5_floor80`, `per_sample_db_p99p9_floor80`, `per_sample_db_max_floor80`, and finally `log1p_p99p9`.
+- Training recipe: PyTorch RNN, `conditioning=none`, direct prediction, sigmoid output, low scheduled sampling `0.0 -> 0.05`, mixed rollout start with `zero-start-prob=0.8`, gradient clipping `1.0`, and autoregressive early stopping.
+- Interpretation: if bandwise or per-sample relative dB significantly improves autoregressive R2 over `0.43`, the previous failure was partly a target-space sparsity problem. If none improves, the main issue remains Luna's local-window autoregressive dynamics rather than only dB scaling.
+
 ## Early-dense data
 
 - Goal: improve early propagation details in the first centimeters.

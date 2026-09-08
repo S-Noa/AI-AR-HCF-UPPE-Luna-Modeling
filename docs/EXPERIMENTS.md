@@ -96,7 +96,7 @@ Use this file as the lightweight memory for model and data experiments. Keep eac
 
 ### Luna-specific raw-power preprocessing sweep
 
-- Started: 2026-09-07.
+- Started and completed: 2026-09-07.
 - Goal: find a preprocessing that keeps Luna raw-power spectra RNN-friendly without copying the original global `-55 dB` scaling too literally.
 - Code change: `export_luna_raw_power_mat.py` now supports `--export-normalization` values `raw_linear_power`, `global_db`, `per_sample_db`, `bandwise_db`, and `log1p`. Non-raw modes export `[0,1]` targets directly, so downstream RNN training should use no additional normalization.
 - Fixed task: t0p6 early-dense, front `10 cm`, `51` z points, `251` wavelength points over `200--2500 nm`.
@@ -107,10 +107,28 @@ Use this file as the lightweight memory for model and data experiments. Keep eac
   - `bandwise_db_p99p9_floor80`: `frac<=0=0.2244`, `frac<=0.1=0.2545`.
   - `log1p_p99p9`: `frac<=0=0.0120`, but `frac<=0.1=0.9385`, so most target values are compressed near zero.
 - Cloud runner: `/mnt/Luna.jl-master/rnn_preprocess_experiments/run_relative_db_rnn_experiments.sh`.
-- Active PID when launched: `44195`.
+- Runner PID when launched: `44195`.
 - Priority order: `bandwise_db_p99p9_floor80`, then `per_sample_db_p99p5_floor80`, `per_sample_db_p99p9_floor80`, `per_sample_db_max_floor80`, and finally `log1p_p99p9`.
 - Training recipe: PyTorch RNN, `conditioning=none`, direct prediction, sigmoid output, low scheduled sampling `0.0 -> 0.05`, mixed rollout start with `zero-start-prob=0.8`, gradient clipping `1.0`, and autoregressive early stopping.
-- Interpretation: if bandwise or per-sample relative dB significantly improves autoregressive R2 over `0.43`, the previous failure was partly a target-space sparsity problem. If none improves, the main issue remains Luna's local-window autoregressive dynamics rather than only dB scaling.
+- Full-test results:
+  - `bandwise_db_p99p9_floor80`: `stepwise_r2=0.9587`, `autoregressive_r2=0.3497`, `autoregressive_final_r2=0.1166`.
+  - `per_sample_db_p99p5_floor80`: `stepwise_r2=0.9051`, `autoregressive_r2=0.2527`, `autoregressive_final_r2=-0.0144`.
+  - `per_sample_db_p99p9_floor80`: `stepwise_r2=0.9601`, `autoregressive_r2=0.3559`, `autoregressive_final_r2=0.1899`.
+  - `per_sample_db_max_floor80`: `stepwise_r2=0.9466`, `autoregressive_r2=0.3748`, `autoregressive_final_r2=0.2192`.
+  - `log1p_p99p9`: `stepwise_r2=0.5462`, `autoregressive_r2=0.4307`, `autoregressive_final_r2=0.0466`.
+- Interpretation: less sparse relative-dB targets did not clearly improve over the best `per_sample_minmax` short baseline. `log1p` reaches similar autoregressive R2 but with very low stepwise R2, suggesting that it compresses the task toward coarse structure rather than producing a genuinely better recurrent model.
+
+### Per-sample-minmax features-z no-detach short-horizon sweep
+
+- Started: 2026-09-08.
+- Goal: execute the current best judgment after the relative-dB sweep: keep the more stable `per_sample_minmax` target space, add physical and z conditioning, and allow gradients through recursive feedback.
+- Cloud runner: `/mnt/Luna.jl-master/rnn_earlydense/run_perminmax_features_z_nodetach.sh`.
+- Active PID when launched: `46166`.
+- Experiments run serially:
+  - `results_features_z_nodetach_z10cm_51_lambda251_perminmax_v1`
+  - `results_features_z_nodetach_z10cm_51_lambda1000_perminmax_v1`
+- Training recipe: `scheduled_sampling`, `conditioning=features_z`, direct prediction, sigmoid output, `--no-detach-feedback`, rollout curriculum `10 -> 41`, feedback `0.0 -> 0.03`, mixed rollout start with `zero-start-prob=0.9`, `learning-rate=3e-5`, and `grad-clip=1.0`.
+- Target comparison: beat or match the current short RNN baseline around `autoregressive_r2=0.43` while improving final autoregressive R2.
 
 ## Early-dense data
 

@@ -1,6 +1,6 @@
 # Project state
 
-Last updated: 2026-09-07
+Last updated: 2026-09-08
 
 ## Current objective
 
@@ -54,7 +54,8 @@ Prepare the project for reliable continued development while preserving the curr
   - `rnn_paper_db`: best among 1/3/5 epoch checks is `autoregressive_r2=0.0947` at 3 epochs.
   This reduces the probability that the Luna autoregressive failure is caused only by the PyTorch port.
 - A stricter preprocessing attribution run is now active: `export_luna_raw_power_mat.py` exports Luna raw linear power maps, then original `load_data.py` applies its own `normalization='dBm'`. Cloud run script: `/mnt/Luna.jl-master/rnn_original_code_env/run_raw_power_dBm_luna_lambda251.sh`.
-- A follow-up Luna-specific raw-power preprocessing sweep is running under `/mnt/Luna.jl-master/rnn_preprocess_experiments`. It exports the same front-10-cm / 51-z / 251-wavelength Luna raw-power task with less aggressive RNN targets: `bandwise_db_p99p9_floor80`, `per_sample_db_p99p5_floor80`, `per_sample_db_p99p9_floor80`, `per_sample_db_max_floor80`, and `log1p_p99p9`. A 300-sample smoke export showed that `bandwise_db_p99p9_floor80` reduces the fraction of exact-zero targets to about `22%`, compared with about `61%` for original global `-55 dB` dBm scaling.
+- The Luna-specific raw-power preprocessing sweep completed under `/mnt/Luna.jl-master/rnn_preprocess_experiments`. It did not beat the best `per_sample_minmax` short RNN baseline. Full-test results: `bandwise_db_p99p9_floor80` autoregressive R2 `0.3497`, `per_sample_db_p99p5_floor80` `0.2527`, `per_sample_db_p99p9_floor80` `0.3559`, `per_sample_db_max_floor80` `0.3748`, and `log1p_p99p9` `0.4307` with weak stepwise R2 `0.5462`.
+- A new `per_sample_minmax` short-horizon RNN optimization runner is active under `/mnt/Luna.jl-master/rnn_earlydense/run_perminmax_features_z_nodetach.sh` using `features_z`, `--no-detach-feedback`, lower scheduled-sampling feedback `0.0 -> 0.03`, `zero-start-prob=0.9`, and gradient clipping. It runs `z10cm_51_lambda251` first, then `z10cm_51_lambda1000`.
 - Original Zenodo data download is being retried with resumable `curl -C -` because the previous `wget` run stopped at a partial `123M` zip. Cloud run script: `/mnt/Luna.jl-master/rnn_original_data/run_original_data_attribution_resumable.sh`.
 
 ## Active manuscript and presentation files
@@ -74,6 +75,6 @@ Binary presentation and submission files are intentionally not tracked in normal
 2. Check whether the raw-power plus original `load_data(..., 'dBm')` run improves Luna autoregressive R2. If it does not, treat Luna data complexity as the main cause.
 3. Use `z10cm_51` or `z10cm_101` only as short-horizon RNN baselines unless the attribution runs show a fixable code mismatch.
 4. Keep `rnn_paper_db` for normalization diagnostics unless a less sparse floor/reference setting clearly improves autoregressive rollout.
-5. Compare the relative-db preprocessing sweep against the current best `per_sample_minmax` short RNN baseline.
+5. Check whether the active `per_sample_minmax + features_z + no-detach` short-horizon runs improve over the current best autoregressive R2 around `0.43`.
 6. Compare temporal CNN and temporal Transformer under the same early-dense and temporal-selection metrics.
 7. Start forward-surrogate-based inverse design before training a standalone inverse model.

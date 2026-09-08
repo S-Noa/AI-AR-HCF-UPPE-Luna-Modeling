@@ -1016,3 +1016,53 @@ nohup python3 train_luna_rnn.py \
   --log-file "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_direct_z10cm_51_lambda251_perminmax_v1/train.log" \
   > "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/results_direct_z10cm_51_lambda251_perminmax_v1.nohup.log" 2>&1 &
 ```
+
+### Per-sample-minmax features-z no-detach sweep
+
+After the relative-dB preprocessing sweep did not beat the best min-max short
+baseline, this runner tests the more conservative route: keep `per_sample_minmax`
+targets, add `features_z`, use differentiable recursive feedback, and reduce the
+scheduled-sampling feedback probability.
+
+Check status:
+
+```bash
+ssh -o BatchMode=yes -p 42054 root@ic.h3i.buaa.edu.cn 'bash -lc "
+BASE=/mnt/Luna.jl-master/rnn_earlydense
+pid=\$(cat \$BASE/run_perminmax_features_z_nodetach.pid 2>/dev/null)
+echo pid=\$pid
+if [ -n \"\$pid\" ]; then ps -p \$pid -o pid,stat,etime,cmd; pgrep -P \$pid -a || true; fi
+tail -n 80 \$BASE/logs/run_perminmax_features_z_nodetach.log 2>/dev/null || true
+tail -n 80 \$BASE/logs/run_perminmax_features_z_nodetach.nohup.log 2>/dev/null || true
+find \$BASE -maxdepth 2 -path \"*features_z_nodetach*\" -name train.log -print | sort | while read p; do echo --- \$p ---; tail -n 35 \$p; done
+"'
+```
+
+Runner path:
+
+```bash
+/mnt/Luna.jl-master/rnn_earlydense/run_perminmax_features_z_nodetach.sh
+```
+
+The runner serially trains:
+
+```text
+results_features_z_nodetach_z10cm_51_lambda251_perminmax_v1
+results_features_z_nodetach_z10cm_51_lambda1000_perminmax_v1
+```
+
+Core training settings:
+
+```text
+conditioning=features_z
+prediction_target=direct
+output_activation=sigmoid
+rollout_steps_start=10
+rollout_steps_end=41
+scheduled_sampling=0.0 -> 0.03
+rollout_start_mode=mixed
+zero_start_prob=0.9
+no_detach_feedback=true
+learning_rate=3e-5
+grad_clip=1.0
+```

@@ -19,6 +19,7 @@ import numpy as np
 import scipy.io as sio
 from sklearn.decomposition import PCA
 from sklearn.neighbors import NearestNeighbors
+from sklearn.preprocessing import StandardScaler
 
 
 def parse_args():
@@ -50,6 +51,7 @@ def load_mat_data(path):
 
 
 def original_dbm_scale(raw_power, floor):
+    raw_power = np.asarray(raw_power, dtype=np.float64)
     reference = float(np.max(np.abs(raw_power)))
     if reference <= 0:
         raise ValueError("Luna raw-power reference is non-positive")
@@ -135,14 +137,12 @@ def sample_windows(data, window_size, max_windows, rng):
     return histories, targets
 
 
-def local_ambiguity(data, window_size, max_windows, rng):
-    histories, targets = sample_windows(data, window_size, max_windows, rng)
-    components = min(16, histories.shape[0] - 1, histories.shape[1])
-    embedding = PCA(n_components=components, svd_solver="randomized", random_state=0).fit_transform(histories)
+def nearest_neighbor_pairs(embedding, targets):
     distances, indices = NearestNeighbors(n_neighbors=2, algorithm="auto").fit(embedding).kneighbors(embedding)
-    history_distance = distances[:, 1]
-    target_difference = np.abs(targets - targets[indices[:, 1]]).mean(axis=1)
-    edges = np.quantile(history_distance, np.linspace(0, 1, 11))
+    return distances[:, 1], np.abs(targets - targets[indices[:, 1]]).mean(axis=1)
+
+
+def summarize_neighbor_pairs(history_distance, target_difference, edges):
     edges = np.unique(edges)
     centers, means, counts = [], [], []
     for left, right in zip(edges[:-1], edges[1:]):
@@ -160,6 +160,25 @@ def local_ambiguity(data, window_size, max_windows, rng):
         "bin_mean_next_step_difference": means,
         "bin_counts": counts,
     }
+
+
+def local_ambiguity_pair(original, luna, window_size, max_windows, rng):
+    original_histories, original_targets = sample_windows(original, window_size, max_windows, rng)
+    luna_histories, luna_targets = sample_windows(luna, window_size, max_windows, rng)
+    combined = np.vstack((original_histories, luna_histories))
+    standardized = StandardScaler().fit_transform(combined)
+    components = min(16, standardized.shape[0] - 1, standardized.shape[1])
+    embedding = PCA(n_components=components, svd_solver="randomized", random_state=0).fit_transform(standardized)
+    original_embedding = embedding[: original_histories.shape[0]]
+    luna_embedding = embedding[original_histories.shape[0] :]
+    original_distance, original_difference = nearest_neighbor_pairs(original_embedding, original_targets)
+    luna_distance, luna_difference = nearest_neighbor_pairs(luna_embedding, luna_targets)
+    edges = np.quantile(np.concatenate((original_distance, luna_distance)), np.linspace(0, 1, 11))
+    return (
+        summarize_neighbor_pairs(original_distance, original_difference, edges),
+        summarize_neighbor_pairs(luna_distance, luna_difference, edges),
+        components,
+    )
 
 
 def plot_representatives(original, luna, original_indices, luna_indices, quantiles, path):
@@ -273,16 +292,19 @@ units are identical.
 | Early/total z-change ratio | {original['early_to_total_change_ratio']:.4f} | {luna['early_to_total_change_ratio']:.4f} |
 | Mean wavelength roughness | {original['mean_abs_dlambda']:.5f} | {luna['mean_abs_dlambda']:.5f} |
 | Mean initial-to-final spectral change | {original['mean_initial_final_change']:.5f} | {luna['mean_initial_final_change']:.5f} |
+| Median nearest-history distance in shared PCA space | {ambiguity_original['median_history_distance']:.5f} | {ambiguity_luna['median_history_distance']:.5f} |
 | Median local next-step difference | {ambiguity_original['median_next_step_difference']:.5f} | {ambiguity_luna['median_next_step_difference']:.5f} |
 | P90 local next-step difference | {ambiguity_original['p90_next_step_difference']:.5f} | {ambiguity_luna['p90_next_step_difference']:.5f} |
 
 ## Interpretation
 
 The plots establish descriptive differences in target sparsity, early-z
-restructuring, spectral roughness, and local-window next-step variation. A
-larger next-step difference among nearby history windows is evidence that the
-local recurrent mapping is less stable under this representation. It does not,
-on its own, establish a unique physical causal mechanism.
+restructuring, spectral roughness, and local-window next-step variation. The
+local-window analysis standardizes both datasets and projects their histories
+into one shared PCA space. Larger nearest-history distances or larger next-step
+differences therefore indicate a broader or less locally stable recurrent
+target distribution under this representation. They do not, on their own,
+establish a unique physical causal mechanism.
 """
     path.write_text(text, encoding="utf-8")
 
@@ -301,8 +323,9 @@ def main():
     luna_quantiles, luna_indices = select_representatives(luna_summary)
     original_r2 = per_step_r2(args.original_autoreg_mat, args.original_test_evolutions, args.original_steps)
     luna_r2 = per_step_r2(args.luna_autoreg_mat, args.luna_test_evolutions, args.luna_steps)
-    ambiguity_original = local_ambiguity(original, args.window_size, args.max_windows, rng)
-    ambiguity_luna = local_ambiguity(luna, args.window_size, args.max_windows, rng)
+    ambiguity_original, ambiguity_luna, ambiguity_components = local_ambiguity_pair(
+        original, luna, args.window_size, args.max_windows, rng
+    )
 
     plot_representatives(original, luna, original_indices, luna_indices, original_quantiles, out_dir / "representative_targets_original_vs_luna.png")
     plot_distribution(original, luna, out_dir / "target_distribution_original_vs_luna.png")
@@ -316,7 +339,11 @@ def main():
         "original_sc": {key: value for key, value in original_summary.items() if not isinstance(value, np.ndarray)},
         "luna_ar_hcf": {key: value for key, value in luna_summary.items() if not isinstance(value, np.ndarray)},
         "representative_quantiles": {"quantiles": original_quantiles, "original_indices": original_indices, "luna_indices": luna_indices},
-        "local_window_ambiguity": {"original_sc": ambiguity_original, "luna_ar_hcf": ambiguity_luna},
+        "local_window_ambiguity": {
+            "shared_standardized_pca_components": ambiguity_components,
+            "original_sc": ambiguity_original,
+            "luna_ar_hcf": ambiguity_luna,
+        },
     }
     (out_dir / "data_dynamics_comparison_metrics.json").write_text(json.dumps(metrics, indent=2), encoding="utf-8")
     write_report(out_dir / "data_dynamics_comparison.md", metrics["original_sc"], metrics["luna_ar_hcf"], ambiguity_original, ambiguity_luna)

@@ -1066,3 +1066,25 @@ no_detach_feedback=true
 learning_rate=3e-5
 grad_clip=1.0
 ```
+
+### Per-sample-minmax no-detach horizon sweep
+
+Run the 101- and 201-point follow-ups serially after the 51-point baseline:
+
+```bash
+source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
+cd "$AI_AR_HCF_REPO"
+
+nohup bash scripts/run_rnn_perminmax_horizon_sweep.sh \
+  > "$LUNA_LEGACY_DATA_ROOT/rnn_earlydense/logs/run_perminmax_horizon_sweep.nohup.log" 2>&1 &
+```
+
+Inspect progress and final metrics:
+
+```bash
+tail -f /mnt/Luna.jl-master/rnn_earlydense/logs/run_perminmax_horizon_sweep.nohup.log
+find /mnt/Luna.jl-master/rnn_earlydense -maxdepth 2 \
+  -path '*features_z_nodetach_z10cm_10*_lambda1000*' -name metrics.json -print
+find /mnt/Luna.jl-master/rnn_earlydense -maxdepth 2 \
+  -path '*features_z_nodetach_z10cm_201_lambda1000*' -name metrics.json -print
+```

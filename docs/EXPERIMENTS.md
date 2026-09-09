@@ -53,6 +53,15 @@ Use this file as the lightweight memory for model and data experiments. Keep eac
 - New attribution plan: compare original RNNnonlinear code/data against our PyTorch training code and low-dimensional Luna tasks. This should separate code mismatch from Luna data difficulty.
 - Key metrics: `stepwise_r2`, `autoregressive_r2`, final autoregressive spectrum quality, and temporal evolution plots.
 
+### Per-sample-minmax no-detach horizon sweep
+
+- Purpose: hold the target space and conditioning fixed while increasing the number of autoregressive steps in the first 10 cm of propagation.
+- Shared configuration: direct sigmoid prediction, `features_z`, scheduled-sampling feedback `0.0 -> 0.03`, mixed rollout starts with `zero_start_prob=0.9`, differentiable feedback (`--no-detach-feedback`), learning rate `3e-5`, and gradient clipping `1.0`.
+- Completed 51-point task:
+  - `lambda251`: full-test `autoregressive_r2=0.4685`, final `R2=0.2819`.
+  - `lambda1000`: full-test `autoregressive_r2=0.4873`, final `R2=0.3301`; selected autoregressive checkpoint from epoch 1.
+- Queued tasks: `z10cm_101_lambda1000` and `z10cm_201_lambda1000`. Their purpose is diagnostic: determine whether the 51-point gain survives 91 and 191 recurrent prediction steps.
+
 ## RNN attribution matrix
 
 - Goal: answer whether Luna autoregressive failure is primarily a code-port issue or a data/task-difficulty issue.

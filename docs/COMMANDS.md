@@ -1088,3 +1088,29 @@ find /mnt/Luna.jl-master/rnn_earlydense -maxdepth 2 \
 find /mnt/Luna.jl-master/rnn_earlydense -maxdepth 2 \
   -path '*features_z_nodetach_z10cm_201_lambda1000*' -name metrics.json -print
 ```
+
+### Original SC versus Luna data-dynamics comparison
+
+This task is read-only and waits for the horizon sweep runner before using CPU
+for PCA-based local-window analysis and figure generation:
+
+```bash
+source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
+cd "$AI_AR_HCF_REPO"
+
+nohup bash scripts/run_rnn_data_dynamics_comparison.sh \
+  > "$LUNA_LEGACY_DATA_ROOT/rnn_visual_diagnostics/data_dynamics_comparison.nohup.log" 2>&1 &
+```
+
+Outputs are written to:
+
+```text
+/mnt/Luna.jl-master/rnn_visual_diagnostics/data_dynamics_comparison/
+```
+
+Check completion:
+
+```bash
+tail -f /mnt/Luna.jl-master/rnn_visual_diagnostics/data_dynamics_comparison.nohup.log
+test -f /mnt/Luna.jl-master/rnn_visual_diagnostics/data_dynamics_comparison/COMPLETED && echo completed
+```

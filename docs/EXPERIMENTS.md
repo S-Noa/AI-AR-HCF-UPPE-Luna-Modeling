@@ -62,6 +62,13 @@ Use this file as the lightweight memory for model and data experiments. Keep eac
   - `lambda1000`: full-test `autoregressive_r2=0.4873`, final `R2=0.3301`; selected autoregressive checkpoint from epoch 1.
 - Queued tasks: `z10cm_101_lambda1000` and `z10cm_201_lambda1000`. Their purpose is diagnostic: determine whether the 51-point gain survives 91 and 191 recurrent prediction steps.
 
+## Original SC versus Luna data-dynamics comparison
+
+- Goal: visually and quantitatively compare the recurrent target spaces without retraining either model.
+- Inputs: original `SC_spec_251` dBm data and Luna raw-power `z10cm_51_lambda251` data mapped through the same original global `-55 dB` pipeline.
+- Outputs: a 2x3 PPT overview, four quantile-selected ground-truth target pairs, target sparsity, z-direction dynamics, spectral occupancy, local 10-step window ambiguity, JSON metrics, and a Markdown report.
+- Interpretation boundary: local-window ambiguity is a descriptive predictability statistic. It supports a more or less stable recurrent mapping under a given representation, but does not independently prove a physical causal mechanism.
+
 ## RNN attribution matrix
 
 - Goal: answer whether Luna autoregressive failure is primarily a code-port issue or a data/task-difficulty issue.

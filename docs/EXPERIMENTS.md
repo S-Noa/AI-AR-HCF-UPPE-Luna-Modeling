@@ -30,6 +30,9 @@ Use this file as the lightweight memory for model and data experiments. Keep eac
   Each package contains four fixed sample indices, ground-truth/stepwise and
   ground-truth/autoregressive evolution maps, final-spectrum comparisons,
   per-step autoregressive R2/RMSE curves, a sample-R2 histogram, and metrics.
+  The first cloud batch was launched on 2026-09-14 and found 12 eligible formal
+  runs; three legacy z1401 result directories lack retained complete prediction
+  matrices and are recorded as missing rather than silently omitted.
 
 ## t0p6 early-dense RNN baseline
 

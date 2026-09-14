@@ -60,7 +60,9 @@ Use this file as the lightweight memory for model and data experiments. Keep eac
 - Completed 51-point task:
   - `lambda251`: full-test `autoregressive_r2=0.4685`, final `R2=0.2819`.
   - `lambda1000`: full-test `autoregressive_r2=0.4873`, final `R2=0.3301`; selected autoregressive checkpoint from epoch 1.
-- Queued tasks: `z10cm_101_lambda1000` and `z10cm_201_lambda1000`. Their purpose is diagnostic: determine whether the 51-point gain survives 91 and 191 recurrent prediction steps.
+- Completed 101-point task: full-test `autoregressive_r2=0.4339`, final `R2=0.2839`.
+- Completed 201-point task: full-test `autoregressive_r2=0.3716`, final `R2=0.2430`.
+- Interpretation: the 51-point improvement does not persist unchanged at 91 and 191 recurrent steps. The decline is measured under identical normalization, conditioning, and low-feedback training settings.
 
 ## Original SC versus Luna data-dynamics comparison
 
@@ -68,6 +70,8 @@ Use this file as the lightweight memory for model and data experiments. Keep eac
 - Inputs: original `SC_spec_251` dBm data and Luna raw-power `z10cm_51_lambda251` data mapped through the same original global `-55 dB` pipeline.
 - Outputs: a 2x3 PPT overview, four quantile-selected ground-truth target pairs, target sparsity, z-direction dynamics, spectral occupancy, local 10-step window ambiguity, JSON metrics, and a Markdown report.
 - Interpretation boundary: local-window ambiguity is a descriptive predictability statistic. It supports a more or less stable recurrent mapping under a given representation, but does not independently prove a physical causal mechanism.
+- Completed output: `/mnt/Luna.jl-master/rnn_visual_diagnostics/data_dynamics_comparison/` contains the PPT overview, representative target maps, standalone figures, metrics JSON, and report.
+- Common-dBm summary: Luna has 61.45% zero-clipped values versus 26.41% for original SC; its maximum mean z-step change occurs at normalized position 0.0 versus 0.207 for original SC. In a shared standardized PCA space, Luna has larger median nearest-history distance (`1.76367` versus `0.49757`) and median local next-step difference (`0.00893` versus `0.00339`).
 
 ## RNN attribution matrix
 

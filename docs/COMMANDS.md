@@ -56,6 +56,28 @@ ls -lh /mnt/Luna.jl-master/rnn_original_data/RNNnonlinear_v2.zip 2>/dev/null || 
 "'
 ```
 
+## Uniform visualization package for completed Luna RNN trainings
+
+The batcher discovers every non-smoke `results_*` directory with
+`metrics.json`, `stepwise_predictions.mat`, and `autoregressive_predictions.mat`.
+It renders four fixed test trajectories per experiment: ground truth versus
+stepwise map, ground truth versus autoregressive map, final-spectrum comparison,
+and per-step autoregressive R2/RMSE curves. It runs sequentially because the
+prediction arrays can be multi-gigabyte.
+
+```bash
+source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
+nohup bash "$AI_AR_HCF_REPO/scripts/run_rnn_training_visual_batch.sh" \
+  > "$LUNA_LEGACY_DATA_ROOT/rnn_visual_diagnostics/training_batch.nohup.log" 2>&1 &
+```
+
+Check progress and the final manifest:
+
+```bash
+tail -f "$LUNA_LEGACY_DATA_ROOT/rnn_visual_diagnostics/training_batch.nohup.log"
+cat "$LUNA_LEGACY_DATA_ROOT/rnn_visual_diagnostics/training_batch/batch_manifest.csv"
+```
+
 ## Export Luna raw power for original RNN dBm preprocessing
 
 This is an attribution experiment, not the default Luna RNN preprocessing route.

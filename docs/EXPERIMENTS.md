@@ -23,6 +23,13 @@ Use this file as the lightweight memory for model and data experiments. Keep eac
 - Autoregressive mode: rollout from initial history by feeding predictions back into the model.
 - Earlier result: stepwise high, autoregressive failed, indicating error accumulation and missing conditioning.
 - Follow-up modes: `open_source_legacy`, `conditional_legacy`, and `rollout_robust`.
+- Uniform visualization policy: every completed non-smoke RNN result with saved
+  stepwise/autoregressive prediction matrices is rendered by
+  `batch_visualize_luna_rnn_results.py` into
+  `/mnt/Luna.jl-master/rnn_visual_diagnostics/training_batch/<experiment>/`.
+  Each package contains four fixed sample indices, ground-truth/stepwise and
+  ground-truth/autoregressive evolution maps, final-spectrum comparisons,
+  per-step autoregressive R2/RMSE curves, a sample-R2 histogram, and metrics.
 
 ## t0p6 early-dense RNN baseline
 

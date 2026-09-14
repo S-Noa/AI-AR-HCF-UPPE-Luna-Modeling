@@ -187,8 +187,10 @@ def plot_representatives(original, luna, original_indices, luna_indices, quantil
         for column, (data, index, title) in enumerate(((original, original_index, "Original SC"), (luna, luna_index, "Luna AR-HCF"))):
             image = axes[row, column].imshow(data[index].T, origin="lower", aspect="auto", cmap="viridis", vmin=0, vmax=1)
             axes[row, column].set_title(f"{title}: early-change P{quantile}")
-            axes[row, column].set_ylabel("Wavelength index")
-            axes[row, column].set_xlabel("Normalized propagation")
+            # data is stored as S[lambda, z]; after transpose, imshow columns
+            # are spectral bins and rows are propagation steps.
+            axes[row, column].set_ylabel("Propagation-step index")
+            axes[row, column].set_xlabel("Spectral-bin index")
     figure.colorbar(image, ax=axes, shrink=0.75, label="Target value after common dBm scaling")
     figure.savefig(path, dpi=220)
     plt.close(figure)
@@ -243,7 +245,7 @@ def plot_overview(original, luna, original_summary, luna_summary, original_r2, l
     figure, axes = plt.subplots(2, 3, figsize=(15, 8.5), constrained_layout=True)
     for axis, data, index, title in zip(axes[0, :2], (original, luna), (original_index, luna_index), ("Original SC: median early change", "Luna AR-HCF: median early change")):
         image = axis.imshow(data[index].T, origin="lower", aspect="auto", cmap="viridis", vmin=0, vmax=1)
-        axis.set(title=title, xlabel="Normalized propagation", ylabel="Wavelength index")
+        axis.set(title=title, xlabel="Spectral-bin index", ylabel="Propagation-step index")
     figure.colorbar(image, ax=axes[0, :2], shrink=0.8, label="dBm-scaled target")
     bins = np.linspace(0, 1, 70)
     axes[0, 2].hist(original.reshape(-1), bins=bins, density=True, alpha=0.55, label="Original")

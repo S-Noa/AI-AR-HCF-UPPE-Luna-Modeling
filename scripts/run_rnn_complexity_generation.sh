@@ -7,6 +7,8 @@ repo="/mnt/AI-AR-HCF-UPPE-Luna-Modeling"
 
 source "$repo/scripts/cloud_luna_env.sh"
 mkdir -p "$root/logs"
+echo "$$" > "$root/generation.pid"
+trap 'rm -f "$root/generation.pid"' EXIT
 cd "$LUNA_PROJECT/examples/simple_interface"
 
 for label in simple complex; do

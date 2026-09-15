@@ -1186,5 +1186,23 @@ python3 create_raw4_feature_view.py \
   --output-dir "$LUNA_LEGACY_DATA_ROOT/processed_t650_global_log_raw4"
 
 python3 -m venv --system-site-packages /mnt/AI-AR-HCF-UPPE-Luna-Modeling/.venv_rl
-/mnt/AI-AR-HCF-UPPE-Luna-Modeling/.venv_rl/bin/pip install -r requirements-rl.txt
+/mnt/AI-AR-HCF-UPPE-Luna-Modeling/.venv_rl/bin/pip install \
+  -r "$LUNA_PROJECT/examples/simple_interface/requirements-rl.txt"
+
+Evaluate the forward surrogate before allowing RL to use it as an environment:
+
+```bash
+python3 "$LUNA_PROJECT/examples/simple_interface/evaluate_raw4_uv_ranking.py" \
+  --input-dir /mnt/Luna.jl-master/processed_t650_global_log_raw4 \
+  --checkpoint /mnt/Luna.jl-master/rl_inverse_design/raw4_banded_mlp_v1/best_val_r2_model.pth \
+  --output-dir /mnt/Luna.jl-master/rl_inverse_design/raw4_banded_mlp_v1/uv_ranking
+```
+
+For the cloud workflow, start the tracked runner after launching the forward model:
+
+```bash
+nohup bash "$AI_AR_HCF_REPO/scripts/run_raw4_uv_evaluation.sh" \
+  > /mnt/Luna.jl-master/rl_inverse_design/raw4_uv_evaluation.nohup.log 2>&1 < /dev/null &
+echo $! > /mnt/Luna.jl-master/rl_inverse_design/raw4_uv_evaluation.pid
+```
 ```

@@ -1185,8 +1185,9 @@ python3 create_raw4_feature_view.py \
   --input-dir "$LUNA_LEGACY_DATA_ROOT/processed_data_t650_v7_global_log" \
   --output-dir "$LUNA_LEGACY_DATA_ROOT/processed_t650_global_log_raw4"
 
-python3 -m venv --system-site-packages /mnt/AI-AR-HCF-UPPE-Luna-Modeling/.venv_rl
-/mnt/AI-AR-HCF-UPPE-Luna-Modeling/.venv_rl/bin/pip install \
+source "$AI_AR_HCF_REPO/scripts/cloud_luna_env.sh"
+# Reuse the cloud Python that already provides the validated Torch/training stack.
+python3 -m pip install --user --no-deps --disable-pip-version-check \
   -r "$LUNA_PROJECT/examples/simple_interface/requirements-rl.txt"
 
 Evaluate the forward surrogate before allowing RL to use it as an environment:

@@ -185,6 +185,7 @@ Use this file as the lightweight memory for model and data experiments. Keep eac
 - Models: original Keras RNNnonlinear components and PyTorch `keras_compatible` ReLU-LSTM with identical RMSprop/MSE 50+30 schedules.
 - Targets: original global -55 dB mapping and external per-sample min-max mapping.
 - Metrics: stepwise, exact 1/2/3/4-step all-start and zero-start R2, full autoregressive R2, final R2, and representative maps.
+- Numerical guard: complex candidates above the calibrated PPT initial-field proxy are rejected before propagation, and a failed candidate is resampled up to 32 times. This prevents invalid PPT interpolation requests from biasing the retained complex set toward failed HDF5 files.
 
 ## Raw4 RL inverse design (planned)
 

@@ -27,6 +27,7 @@ function parse_args()
         "count" => 1600,
         "start-index" => 1,
         "seed" => 20260915,
+        "max-attempts" => 32,
         "overwrite" => false,
     )
     i = 1
@@ -39,7 +40,7 @@ function parse_args()
         value = ARGS[i]
         if key == "--class" || key == "--output-dir"
             values[key[3:end]] = value
-        elseif key == "--count" || key == "--start-index" || key == "--seed"
+        elseif key == "--count" || key == "--start-index" || key == "--seed" || key == "--max-attempts"
             values[key[3:end]] = parse(Int, value)
         elseif key == "--overwrite"
             values["overwrite"] = lowercase(value) in ("1", "true", "yes")
@@ -73,6 +74,15 @@ function ranges_for(label)
 end
 
 sample_uniform(rng, interval) = interval[1] + rand(rng) * (interval[2] - interval[1])
+
+# This dimensionless proxy is calibrated below Luna's PPT interpolation limit for
+# the fixed 1030 nm, 0.65 um-wall benchmark geometry.  It avoids launching
+# candidates that are certain to exceed the tabulated ionisation-rate field range.
+function ppt_field_proxy(energy_uj, tau_fs, diameter_um)
+    return energy_uj / (tau_fs * diameter_um^2)
+end
+
+const MAX_PPT_FIELD_PROXY = 1.0e-3
 
 function run_sample(filepath, energy_uj, tau_fs, pressure_bar, diameter_um)
     length_m = 0.05
@@ -136,7 +146,8 @@ function main()
     seed = args["seed"]
     ranges = ranges_for(label)
     println("Generating $label candidates in $output_dir")
-    println("count=$count start=$start_index seed=$seed L=5 cm saveN=200")
+    max_attempts = args["max-attempts"]
+    println("count=$count start=$start_index seed=$seed L=5 cm saveN=200 max_attempts=$max_attempts")
     for index in start_index:(start_index + count - 1)
         filename = @sprintf("candidate_%04d.h5", index)
         filepath = joinpath(output_dir, filename)
@@ -145,25 +156,40 @@ function main()
             println("[$index] already complete, skipping")
             continue
         end
-        rng = MersenneTwister(seed + index)
-        energy = sample_uniform(rng, ranges.energy)
-        tau = sample_uniform(rng, ranges.tau)
-        pressure = sample_uniform(rng, ranges.pressure)
-        diameter = sample_uniform(rng, ranges.diameter)
         temporary = filepath * ".tmp"
-        rm(temporary; force=true)
-        try
-            println(@sprintf("[%d] E=%.4f uJ tau=%.3f fs p=%.3f bar d=%.3f um", index, energy, tau, pressure, diameter))
-            run_sample(temporary, energy, tau, pressure, diameter)
-            write_metadata(temporary, label, index, seed, energy, tau, pressure, diameter)
-            mv(temporary, filepath; force=true)
-            open(marker, "w") do io
-                println(io, "complete=true")
-                println(io, "save_n=200")
+        completed = false
+        for attempt in 1:max_attempts
+            rng = MersenneTwister(seed + 10_000 * index + attempt)
+            energy = sample_uniform(rng, ranges.energy)
+            tau = sample_uniform(rng, ranges.tau)
+            pressure = sample_uniform(rng, ranges.pressure)
+            diameter = sample_uniform(rng, ranges.diameter)
+            proxy = ppt_field_proxy(energy, tau, diameter)
+            if label == "complex" && proxy > MAX_PPT_FIELD_PROXY
+                println(@sprintf("[%d] attempt %d rejected by PPT proxy %.4e", index, attempt, proxy))
+                continue
             end
-        catch err
             rm(temporary; force=true)
-            @error "Candidate failed" index exception=(err, catch_backtrace())
+            try
+                println(@sprintf("[%d] attempt %d E=%.4f uJ tau=%.3f fs p=%.3f bar d=%.3f um", index, attempt, energy, tau, pressure, diameter))
+                run_sample(temporary, energy, tau, pressure, diameter)
+                write_metadata(temporary, label, index, seed, energy, tau, pressure, diameter)
+                mv(temporary, filepath; force=true)
+                open(marker, "w") do io
+                    println(io, "complete=true")
+                    println(io, "save_n=200")
+                    println(io, "attempt=$attempt")
+                    println(io, "ppt_field_proxy=$proxy")
+                end
+                completed = true
+                break
+            catch err
+                rm(temporary; force=true)
+                @warn "Candidate attempt failed; resampling" index attempt exception=(err, catch_backtrace())
+            end
+        end
+        if !completed
+            @error "Candidate exhausted all attempts" index max_attempts
         end
     end
 end

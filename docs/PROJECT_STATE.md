@@ -87,3 +87,4 @@ Binary presentation and submission files are intentionally not tracked in normal
 - A new controlled Luna benchmark will generate simple and complex spectra over 0--5 cm with 200 z planes and 251 wavelength bins. Each class retains 1,250 train and 50 test trajectories, matching the reference SC RNN scale.
 - The PyTorch RNN now includes a Keras-compatible ReLU-LSTM option and fixed 1/2/3/4-step recursive metrics from all starts and z=0.
 - RL inverse design will use a raw4 t0p6 global-log forward surrogate. Only energy, tau, pressure, and diameter are actions; the existing 15-feature optimizer is not a physically valid RL environment.
+- The controlled complex generator prefilters candidates with a conservative initial-field proxy and resamples failed attempts. This is required because the nominal complex range can exceed Luna's tabulated PPT ionisation-rate field limit; it does not change the accepted benchmark geometry or target complexity ranking.

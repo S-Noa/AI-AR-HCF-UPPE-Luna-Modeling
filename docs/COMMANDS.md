@@ -1144,12 +1144,13 @@ source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
 cd "$LUNA_PROJECT/examples/simple_interface"
 mkdir -p /mnt/Luna.jl-master/rnn_complexity_benchmark
 
-nohup julia --project="$LUNA_PROJECT" generate_rnn_complexity_benchmark.jl --class simple \
-  --output-dir /mnt/Luna.jl-master/rnn_complexity_benchmark/simple_candidates --count 1600 \
-  > /mnt/Luna.jl-master/rnn_complexity_benchmark/simple_generation.log 2>&1 &
-nohup julia --project="$LUNA_PROJECT" generate_rnn_complexity_benchmark.jl --class complex \
-  --output-dir /mnt/Luna.jl-master/rnn_complexity_benchmark/complex_candidates --count 1600 \
-  > /mnt/Luna.jl-master/rnn_complexity_benchmark/complex_generation.log 2>&1 &
+nohup bash "$AI_AR_HCF_REPO/scripts/run_rnn_complexity_generation.sh" 1600 \
+  > /mnt/Luna.jl-master/rnn_complexity_benchmark/logs/run_generation.nohup.log 2>&1 < /dev/null &
+echo $! > /mnt/Luna.jl-master/rnn_complexity_benchmark/launcher.pid
+
+# The runner writes generation.pid while active. Complex candidates are
+# resampled if their initial-field proxy would exceed Luna's PPT table limit.
+tail -f /mnt/Luna.jl-master/rnn_complexity_benchmark/logs/complex_generation.log
 
 cd "$AI_AR_HCF_REPO/rnnnonlinear-master/rnnnonlinear-master"
 python3 prepare_rnn_complexity_benchmark.py \

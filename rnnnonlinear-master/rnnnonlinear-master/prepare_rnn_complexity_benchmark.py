@@ -62,6 +62,13 @@ def read_field_map(path, lambda_nm, z_points):
             raise ValueError("Missing usable frequency grid")
         params = {key: handle["benchmark_params"][key][()] for key in handle.get("benchmark_params", {})}
 
+    # RealGrid includes a DC bin.  Only positive finite angular frequencies
+    # have a physical wavelength and are valid for wavelength interpolation.
+    valid_frequency = np.isfinite(omega) & (omega > 0.0)
+    omega = omega[valid_frequency]
+    eomega = eomega[:, valid_frequency]
+    if omega.size < 2:
+        raise ValueError("Frequency grid has fewer than two positive finite bins")
     source_lambda = C_LIGHT * 2.0 * np.pi / omega * 1e9
     order = np.argsort(source_lambda)
     source_lambda = source_lambda[order]

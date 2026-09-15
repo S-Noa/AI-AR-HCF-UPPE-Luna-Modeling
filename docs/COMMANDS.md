@@ -1205,4 +1205,12 @@ nohup bash "$AI_AR_HCF_REPO/scripts/run_raw4_uv_evaluation.sh" \
   > /mnt/Luna.jl-master/rl_inverse_design/raw4_uv_evaluation.nohup.log 2>&1 < /dev/null &
 echo $! > /mnt/Luna.jl-master/rl_inverse_design/raw4_uv_evaluation.pid
 ```
+
+Run the three formal SAC seeds serially after the UV-ranking gate passes:
+
+```bash
+nohup bash "$AI_AR_HCF_REPO/scripts/run_raw4_rl_seeds.sh" \
+  > /mnt/Luna.jl-master/rl_inverse_design/logs/run_raw4_rl_seeds.nohup.log 2>&1 < /dev/null &
+echo $! > /mnt/Luna.jl-master/rl_inverse_design/rl_formal_launcher.pid
+```
 ```

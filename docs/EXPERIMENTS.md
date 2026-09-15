@@ -188,6 +188,7 @@ Use this file as the lightweight memory for model and data experiments. Keep eac
 - Numerical guard: the complex generator calculates the physical initial field from `Aeff`, energy, and pulse duration, requires it to stay below `0.5` of the PPT lookup limit, and resamples a failed candidate up to 32 times. This prevents invalid PPT interpolation requests from biasing the retained complex set toward failed HDF5 files.
 - The original extreme complex proposal was numerically outside this PPT implementation after self-compression. The active complex sampling domain is `E=2.0--2.5 uJ`, `tau=10--16 fs`, `p=10--25 bar`, and `d=18--25 um`; it is still separated from the simple domain and will be ranked by observed map complexity.
 - Fixed-horizon evaluator smoke: `open_source_legacy`, one epoch, 50 train / 10 test trajectories from `z10cm_51_lambda251`, all-start R2: step 1 `0.7898`, step 2 `0.7784`, step 3 `0.7642`, step 4 `0.7476`. This validates the metric pipeline only; repeat with trained benchmark checkpoints.
+- Raw4 inverse-design forward gate: Banded MLP on the t0p6 global-log raw4 view reached test `Final_LogPower_R2=0.9831` and `UV_LogPower_R2=0.9585`; UV-fraction ranking reached Spearman `0.9619`, Pearson `0.9295`, and top-50 recall `0.34`. The 3,000-step SAC smoke completed and wrote `sac_agent.zip`, `inverse_candidates.csv`, `rl_summary.json`, and a Luna validation command file.
 
 ## Raw4 RL inverse design (planned)
 

@@ -1153,6 +1153,22 @@ echo $! > /mnt/Luna.jl-master/rnn_complexity_benchmark/launcher.pid
 # 0.5 x PPT table-limit guard.
 tail -f /mnt/Luna.jl-master/rnn_complexity_benchmark/logs/complex_generation.log
 
+### Fixed 1--4-step RNN evaluator smoke
+
+```bash
+source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
+cd "$AI_AR_HCF_REPO/rnnnonlinear-master/rnnnonlinear-master"
+
+nohup python3 train_luna_rnn.py \
+  --data /mnt/Luna.jl-master/rnn_earlydense/simulations/luna_t0p6_earlydense_z10cm_51_lambda251_conditional.mat \
+  --output-dir /mnt/Luna.jl-master/rnn_earlydense/fixed_horizon_smoke \
+  --training-mode open_source_legacy --conditioning none \
+  --window-size 10 --hidden 250 --epochs 1 --batch-size 16 \
+  --train-evolutions 50 --test-evolutions 10 \
+  --eval-fixed-horizons 1 2 3 4 --fixed-horizon-origins both \
+  > /mnt/Luna.jl-master/rnn_earlydense/fixed_horizon_smoke/nohup.log 2>&1 < /dev/null &
+```
+
 cd "$AI_AR_HCF_REPO/rnnnonlinear-master/rnnnonlinear-master"
 python3 prepare_rnn_complexity_benchmark.py \
   --simple-dir /mnt/Luna.jl-master/rnn_complexity_benchmark/simple_candidates \

@@ -1149,7 +1149,8 @@ nohup bash "$AI_AR_HCF_REPO/scripts/run_rnn_complexity_generation.sh" 1600 \
 echo $! > /mnt/Luna.jl-master/rnn_complexity_benchmark/launcher.pid
 
 # The runner writes generation.pid while active. Complex candidates are
-# resampled if their initial-field proxy would exceed Luna's PPT table limit.
+# resampled if their calculated initial field would exceed the conservative
+# 0.5 x PPT table-limit guard.
 tail -f /mnt/Luna.jl-master/rnn_complexity_benchmark/logs/complex_generation.log
 
 cd "$AI_AR_HCF_REPO/rnnnonlinear-master/rnnnonlinear-master"

@@ -75,14 +75,21 @@ end
 
 sample_uniform(rng, interval) = interval[1] + rand(rng) * (interval[2] - interval[1])
 
-# This dimensionless proxy is calibrated below Luna's PPT interpolation limit for
-# the fixed 1030 nm, 0.65 um-wall benchmark geometry.  It avoids launching
-# candidates that are certain to exceed the tabulated ionisation-rate field range.
-function ppt_field_proxy(energy_uj, tau_fs, diameter_um)
-    return energy_uj / (tau_fs * diameter_um^2)
-end
+# Match the initial-field calculation in data_generation.jl.  The 0.5 factor
+# leaves headroom for nonlinear self-compression before the PPT lookup reaches
+# Luna's tabulated maximum field.
+const PPT_FIELD_LIMIT = 8.625348297553e10
+const INITIAL_FIELD_SAFETY_RATIO = 0.5
 
-const MAX_PPT_FIELD_PROXY = 1.0e-3
+function initial_field_strength(energy_uj, tau_fs, pressure_bar, diameter_um)
+    radius = diameter_um * 0.5e-6
+    mode = Luna.Antiresonant.ZeisbergerMode(radius, :Ar, pressure_bar;
+        wallthickness=0.65e-6, model=:full, loss=true)
+    aeff = Modes.Aeff(mode)
+    tau0 = tau_fs * 1e-15 / (2 * log(1 + sqrt(2)))
+    peak_power = energy_uj * 1e-6 / (tau0 * sqrt(pi))
+    return sqrt(2 * peak_power / (pi * aeff))
+end
 
 function run_sample(filepath, energy_uj, tau_fs, pressure_bar, diameter_um)
     length_m = 0.05
@@ -164,9 +171,9 @@ function main()
             tau = sample_uniform(rng, ranges.tau)
             pressure = sample_uniform(rng, ranges.pressure)
             diameter = sample_uniform(rng, ranges.diameter)
-            proxy = ppt_field_proxy(energy, tau, diameter)
-            if label == "complex" && proxy > MAX_PPT_FIELD_PROXY
-                println(@sprintf("[%d] attempt %d rejected by PPT proxy %.4e", index, attempt, proxy))
+            initial_field = initial_field_strength(energy, tau, pressure, diameter)
+            if label == "complex" && initial_field > INITIAL_FIELD_SAFETY_RATIO * PPT_FIELD_LIMIT
+                println(@sprintf("[%d] attempt %d rejected by initial field %.4e V/m", index, attempt, initial_field))
                 continue
             end
             rm(temporary; force=true)
@@ -179,7 +186,7 @@ function main()
                     println(io, "complete=true")
                     println(io, "save_n=200")
                     println(io, "attempt=$attempt")
-                    println(io, "ppt_field_proxy=$proxy")
+                    println(io, "initial_field_v_per_m=$initial_field")
                 end
                 completed = true
                 break

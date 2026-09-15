@@ -70,7 +70,10 @@ function ranges_for(label)
     if label == "simple"
         return (energy=(0.3, 1.0), tau=(25.0, 50.0), pressure=(0.5, 15.0), diameter=(30.0, 50.0))
     end
-    return (energy=(2.0, 3.0), tau=(5.0, 12.0), pressure=(20.0, 50.0), diameter=(10.0, 20.0))
+    # A numerically feasible, still strongly nonlinear subset.  The original
+    # extreme proposal (2--3 uJ, 5--12 fs, 20--50 bar, 10--20 um) routinely
+    # self-compresses beyond Luna's finite PPT lookup table within 5 cm.
+    return (energy=(2.0, 2.5), tau=(10.0, 16.0), pressure=(10.0, 25.0), diameter=(18.0, 25.0))
 end
 
 sample_uniform(rng, interval) = interval[1] + rand(rng) * (interval[2] - interval[1])

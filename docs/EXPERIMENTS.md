@@ -186,6 +186,7 @@ Use this file as the lightweight memory for model and data experiments. Keep eac
 - Targets: original global -55 dB mapping and external per-sample min-max mapping.
 - Metrics: stepwise, exact 1/2/3/4-step all-start and zero-start R2, full autoregressive R2, final R2, and representative maps.
 - Numerical guard: the complex generator calculates the physical initial field from `Aeff`, energy, and pulse duration, requires it to stay below `0.5` of the PPT lookup limit, and resamples a failed candidate up to 32 times. This prevents invalid PPT interpolation requests from biasing the retained complex set toward failed HDF5 files.
+- The original extreme complex proposal was numerically outside this PPT implementation after self-compression. The active complex sampling domain is `E=2.0--2.5 uJ`, `tau=10--16 fs`, `p=10--25 bar`, and `d=18--25 um`; it is still separated from the simple domain and will be ranked by observed map complexity.
 
 ## Raw4 RL inverse design (planned)
 

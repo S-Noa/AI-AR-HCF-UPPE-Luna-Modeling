@@ -5,7 +5,7 @@ set -euo pipefail
 repo="/mnt/AI-AR-HCF-UPPE-Luna-Modeling"
 data_root="/mnt/Luna.jl-master"
 rl_root="$data_root/rl_inverse_design"
-output="$rl_root/luna_validation_reexport_v2"
+output="$rl_root/luna_validation_reexport_v3"
 
 source "$repo/scripts/cloud_luna_env.sh"
 mkdir -p "$output/validation_h5"
@@ -47,6 +47,8 @@ print(f'Retained {len(retained)} unique candidates')
 PY
 
 cd "$LUNA_PROJECT/examples/simple_interface"
+failure_csv="$output/luna_validation_failures.csv"
+echo "rank,seed,uv_fraction_surrogate,reason" > "$failure_csv"
 while IFS=, read -r rank seed score energy_j tau_s pressure diameter_m energy_uj tau_fs diameter_um; do
   if [ "$rank" = "rank" ]; then continue; fi
   output_h5="$output/validation_h5/candidate_rank$(printf '%03d' "$rank")_seed${seed}.h5"
@@ -55,9 +57,18 @@ while IFS=, read -r rank seed score energy_j tau_s pressure diameter_m energy_uj
     continue
   fi
   echo "[$(date -Is)] validating rank=$rank seed=$seed score=$score E=${energy_uj}uJ tau=${tau_fs}fs p=${pressure}bar d=${diameter_um}um"
-  julia --project="$LUNA_PROJECT" anti_resonant_simulation.jl \
+  if julia --project="$LUNA_PROJECT" anti_resonant_simulation.jl \
     -e "$energy_uj" --tau "$tau_fs" -p "$pressure" -d "$diameter_um" -t 0.65 \
-    -o "$output_h5"
+    -o "$output_h5"; then
+    echo "[$(date -Is)] validation succeeded: rank=$rank"
+  else
+    # A partial HDF5 file is not a valid simulation result. It was created by
+    # this runner, so removing it avoids mistaking a failed propagation for a
+    # completed Luna validation.
+    rm -f "$output_h5"
+    printf '%s,%s,%s,%s\n' "$rank" "$seed" "$score" "luna_simulation_failed" >> "$failure_csv"
+    echo "[$(date -Is)] validation failed and was recorded: rank=$rank" >&2
+  fi
 done < "$output/luna_candidates.csv"
 
 touch "$output/LUNA_VALIDATION_COMPLETED"

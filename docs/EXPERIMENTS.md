@@ -210,3 +210,9 @@ pressure is bar, and diameter is already um. The corrected candidate export
 records canonical SI fields (`energy_j`, `tau_s`, `diameter_m`) and
 simulator-facing fields (`energy_uj`, `tau_fs`, `diameter_um`). Luna validation
 is required before reporting an inverse-design result.
+
+The first corrected candidate was physically plausible at the input but crossed
+the Luna PPT rate-table maximum after self-compression (`8.72e10 V/m` versus
+`8.63e10 V/m`). This is recorded as a non-runnable validation outcome, not a
+surrogate success. The validation runner continues past such candidates and
+writes `luna_validation_failures.csv`.

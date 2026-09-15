@@ -1224,8 +1224,8 @@ from the saved agents, deduplicate them, and only then start HDF5 validation:
 source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
 cd "$AI_AR_HCF_REPO"
 nohup bash scripts/run_rl_candidate_reexport_and_luna_validation.sh \
-  > /mnt/Luna.jl-master/rl_inverse_design/luna_validation_reexport_v2/nohup.log 2>&1 < /dev/null &
-echo $! > /mnt/Luna.jl-master/rl_inverse_design/luna_validation_reexport_v2/launcher.pid
+  > /mnt/Luna.jl-master/rl_inverse_design/luna_validation_reexport_v3/nohup.log 2>&1 < /dev/null &
+echo $! > /mnt/Luna.jl-master/rl_inverse_design/luna_validation_reexport_v3/launcher.pid
 ```
 
 ### Controlled RNN benchmark pipeline

@@ -81,7 +81,7 @@ def main():
         raw = lower + unit * (upper - lower)
         scaled = scaler.transform(raw).astype(np.float32)
         x = torch.tensor(scaled, device=device, requires_grad=require_grad)
-        pred = model(x)
+        _, pred = model(x)
         log_power = pred * log_std + log_mean
         linear_power = torch.pow(10.0, torch.clamp(log_power, -30.0, 30.0))
         score = torch.sum(linear_power[:, uv_mask], dim=1) / (torch.sum(linear_power, dim=1) + 1e-20)
@@ -132,7 +132,7 @@ def main():
         optimizer.zero_grad()
         raw = raw_lower + torch.clamp(unit, 0.0, 1.0) * raw_span
         scaled = (raw - scaler_mean) / scaler_scale
-        pred = model(scaled)
+        _, pred = model(scaled)
         log_power = pred * log_std + log_mean
         power = torch.pow(10.0, torch.clamp(log_power, -30.0, 30.0))
         score = torch.sum(power[:, uv_mask], dim=1) / (torch.sum(power, dim=1) + 1e-20)

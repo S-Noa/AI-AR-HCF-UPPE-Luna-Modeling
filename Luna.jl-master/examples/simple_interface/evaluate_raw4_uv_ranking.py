@@ -73,7 +73,8 @@ def main():
     with torch.no_grad():
         for start in range(0, len(x_test), args.batch_size):
             batch = torch.from_numpy(x_test[start:start + args.batch_size]).to(device)
-            predictions.append(model(batch).cpu().numpy())
+            _, final_spectrum = model(batch)
+            predictions.append(final_spectrum.cpu().numpy())
     prediction = np.concatenate(predictions, axis=0)
 
     wavelength_nm = np.linspace(wavelength_range[0], wavelength_range[1], y_test.shape[1])

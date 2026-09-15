@@ -31,7 +31,7 @@ def parse_args():
 def load_model(params, checkpoint, args, device, output_dim):
     model_args = SimpleNamespace(
         num_bands=4,
-        band_boundaries_nm=None,
+        band_boundaries_nm=[200.0, 700.0, 1200.0, 1800.0, 2500.0],
         band_head_hidden=args.band_head_hidden,
         uv_band_head_hidden=args.uv_band_head_hidden,
     )

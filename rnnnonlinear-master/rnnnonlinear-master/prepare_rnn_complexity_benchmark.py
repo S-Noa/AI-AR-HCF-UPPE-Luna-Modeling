@@ -145,14 +145,14 @@ def export_group(rows, label, output_dir, lambda_nm, train_count, test_count, se
     return ordered
 
 
-def write_manifest(rows, path):
+def write_manifest(rows, path, train_count):
     keys = sorted({key for row in rows for key in row if key not in {"power", "z"}})
     with open(path, "w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=["split", "split_index"] + keys)
         writer.writeheader()
         for index, row in enumerate(rows):
             payload = {key: row.get(key, "") for key in keys}
-            payload["split"] = "train" if index < 1250 else "test"
+            payload["split"] = "train" if index < train_count else "test"
             payload["split_index"] = index
             writer.writerow(payload)
 
@@ -169,7 +169,8 @@ def main():
                                   args.train_evolutions, args.test_evolutions, args.seed)
     complex_ordered = export_group(complex_rows, "complex", args.output_dir, lambda_nm,
                                    args.train_evolutions, args.test_evolutions, args.seed + 1)
-    write_manifest(simple_ordered + complex_ordered, os.path.join(args.output_dir, "manifest.csv"))
+    write_manifest(simple_ordered + complex_ordered, os.path.join(args.output_dir, "manifest.csv"),
+                   args.train_evolutions)
     summary = {
         "z_points": args.z_points, "z_range_cm": [0.0, 5.0],
         "lambda_points": args.lambda_points, "lambda_range_nm": [args.lambda_min_nm, args.lambda_max_nm],

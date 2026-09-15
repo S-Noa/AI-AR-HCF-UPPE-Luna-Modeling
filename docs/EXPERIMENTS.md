@@ -178,3 +178,16 @@ Use this file as the lightweight memory for model and data experiments. Keep eac
 - Goal: use a trained forward surrogate as a fast environment for parameter search.
 - Recommended first step: differentiable or black-box optimization through the forward surrogate, followed by Luna verification.
 - RL role: future inverse-design policy layer, not a replacement for the forward surrogate.
+
+## Controlled simple/complex RNN benchmark (planned)
+
+- Data: separate 0--5 cm Luna trajectories; 200 z positions, 251 wavelength points, window size 10, and 1,250/50 train/test trajectories per complexity class.
+- Models: original Keras RNNnonlinear components and PyTorch `keras_compatible` ReLU-LSTM with identical RMSprop/MSE 50+30 schedules.
+- Targets: original global -55 dB mapping and external per-sample min-max mapping.
+- Metrics: stepwise, exact 1/2/3/4-step all-start and zero-start R2, full autoregressive R2, final R2, and representative maps.
+
+## Raw4 RL inverse design (planned)
+
+- Input domain: t0p6 global-log data and raw physical inputs only: energy, tau, pressure, diameter.
+- Objective: final-spectrum linear-power UV fraction.
+- Comparison: SAC, random/Sobol, differential evolution, and constrained raw4 gradient optimization. Every top candidate requires Luna validation.

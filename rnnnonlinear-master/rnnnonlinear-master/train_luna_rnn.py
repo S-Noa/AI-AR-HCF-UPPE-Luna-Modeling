@@ -18,15 +18,68 @@ import torch.nn as nn
 from torch.utils.data import DataLoader, Dataset
 
 
+class KerasCompatibleReLULSTM(nn.Module):
+    """Minimal Keras ``LSTM(activation='relu')`` equivalent.
+
+    PyTorch's built-in LSTM uses tanh for the candidate and output activation,
+    whereas the reference RNNnonlinear Keras model uses ReLU.  This module is
+    intentionally used only for controlled framework comparisons.
+    """
+
+    def __init__(self, input_size, hidden_size):
+        super().__init__()
+        self.input_size = int(input_size)
+        self.hidden_size = int(hidden_size)
+        self.weight_ih = nn.Parameter(torch.empty(4 * hidden_size, input_size))
+        self.weight_hh = nn.Parameter(torch.empty(4 * hidden_size, hidden_size))
+        self.bias_ih = nn.Parameter(torch.zeros(4 * hidden_size))
+        self.bias_hh = nn.Parameter(torch.zeros(4 * hidden_size))
+        self.reset_parameters()
+
+    def reset_parameters(self):
+        nn.init.xavier_uniform_(self.weight_ih)
+        nn.init.orthogonal_(self.weight_hh)
+        with torch.no_grad():
+            # Keras uses unit_forget_bias=True by default.
+            self.bias_ih[self.hidden_size:2 * self.hidden_size].fill_(1.0)
+
+    def forward(self, x):
+        batch, steps, _ = x.shape
+        hidden = x.new_zeros((batch, self.hidden_size))
+        cell = x.new_zeros((batch, self.hidden_size))
+        outputs = []
+        for step in range(steps):
+            gates = (
+                torch.nn.functional.linear(x[:, step, :], self.weight_ih, self.bias_ih)
+                + torch.nn.functional.linear(hidden, self.weight_hh, self.bias_hh)
+            )
+            input_gate, forget_gate, candidate, output_gate = gates.chunk(4, dim=1)
+            input_gate = torch.sigmoid(input_gate)
+            forget_gate = torch.sigmoid(forget_gate)
+            output_gate = torch.sigmoid(output_gate)
+            cell = forget_gate * cell + input_gate * torch.relu(candidate)
+            hidden = output_gate * torch.relu(cell)
+            outputs.append(hidden)
+        return torch.stack(outputs, dim=1), (hidden.unsqueeze(0), cell.unsqueeze(0))
+
+
 class LunaRNN(nn.Module):
     """LSTM -> Dense -> Dense -> output, matching the RNNnonlinear baseline."""
 
-    def __init__(self, n_grid, hidden=250, output_activation="sigmoid", conditioning_dim=0):
+    def __init__(self, n_grid, hidden=250, output_activation="sigmoid", conditioning_dim=0,
+                 lstm_implementation="native"):
         super().__init__()
         self.n_grid = int(n_grid)
         self.conditioning_dim = int(conditioning_dim)
         self.output_activation = output_activation
-        self.lstm = nn.LSTM(input_size=n_grid + self.conditioning_dim, hidden_size=hidden, batch_first=True)
+        self.lstm_implementation = str(lstm_implementation)
+        input_size = n_grid + self.conditioning_dim
+        if self.lstm_implementation == "native":
+            self.lstm = nn.LSTM(input_size=input_size, hidden_size=hidden, batch_first=True)
+        elif self.lstm_implementation == "keras_compatible":
+            self.lstm = KerasCompatibleReLULSTM(input_size=input_size, hidden_size=hidden)
+        else:
+            raise ValueError(f"Unsupported lstm implementation: {self.lstm_implementation}")
         self.head = nn.Sequential(
             nn.Linear(hidden, hidden),
             nn.ReLU(),
@@ -51,9 +104,15 @@ def parse_args():
     parser.add_argument("--epochs", type=int, default=50)
     parser.add_argument("--batch-size", type=int, default=128)
     parser.add_argument("--learning-rate", type=float, default=1e-4)
+    parser.add_argument("--stage2-learning-rate", type=float, default=None,
+                        help="Optional second-stage learning rate for reference 50+30 schedules")
+    parser.add_argument("--stage2-start-epoch", type=int, default=None,
+                        help="One-based epoch at which --stage2-learning-rate takes effect")
     parser.add_argument("--grad-clip", type=float, default=0.0,
                         help="Clip gradient norm to this value; 0 disables clipping")
     parser.add_argument("--hidden", type=int, default=250)
+    parser.add_argument("--lstm-implementation", choices=["native", "keras_compatible"], default="native",
+                        help="native uses torch.nn.LSTM; keras_compatible matches the reference Keras ReLU LSTM")
     parser.add_argument("--test-fraction", type=float, default=0.1)
     parser.add_argument("--train-evolutions", type=int, default=None,
                         help="Optional explicit number of training evolutions, matching RNNnonlinear train_evo")
@@ -115,6 +174,10 @@ def parse_args():
                         help="Stop when periodic autoregressive R2 has not improved for --autoreg-patience evals")
     parser.add_argument("--autoreg-patience", type=int, default=8,
                         help="Number of autoregressive evaluations without improvement before early stopping")
+    parser.add_argument("--eval-fixed-horizons", type=int, nargs="*", default=None,
+                        help="Optional exact recursive horizons, e.g. --eval-fixed-horizons 1 2 3 4")
+    parser.add_argument("--fixed-horizon-origins", choices=["all", "zero", "both"], default="both",
+                        help="Evaluate fixed horizons from all valid z starts, z=0 only, or both")
     return parser.parse_args()
 
 
@@ -522,6 +585,76 @@ def predict_autoregressive(model, data_test, window_size, device,
     return summary
 
 
+def evaluate_fixed_horizons(model, data_test, window_size, device, horizons,
+                            origins="both", batch_size=16, features_test=None,
+                            z_norm=None, use_features=False, use_z=False,
+                            prediction_target="direct"):
+    """Evaluate exact k-step rollouts from true local histories.
+
+    ``all`` measures the local recurrent map from every valid propagation
+    position. ``zero`` uses only the physical input plane.  Unlike a full
+    rollout, each horizon starts from a true history, so the first point at
+    which feedback causes a measurable departure can be identified directly.
+    """
+    if not horizons:
+        return {}
+    horizons = sorted({int(h) for h in horizons if int(h) >= 1})
+    if not horizons:
+        return {}
+    requested_origins = ("all", "zero") if origins == "both" else (origins,)
+    model.eval()
+    n_evo, _, n_steps = data_test.shape
+    results = {}
+
+    with torch.no_grad():
+        for origin_mode in requested_origins:
+            origin_result = {}
+            for horizon in horizons:
+                if horizon >= n_steps:
+                    logging.warning("Skipping fixed horizon %d because n_steps=%d", horizon, n_steps)
+                    continue
+                count = true_sum = true_sq_sum = squared_error_sum = 0.0
+                start_indices = [0] if origin_mode == "zero" else range(0, n_steps - horizon)
+                for start_step in start_indices:
+                    for start in range(0, n_evo, batch_size):
+                        stop = min(start + batch_size, n_evo)
+                        sequence = torch.tensor(
+                            np.transpose(data_test[start:stop], (0, 2, 1)),
+                            dtype=torch.float32, device=device
+                        )
+                        feature = None
+                        if use_features:
+                            feature = torch.tensor(features_test[start:stop], dtype=torch.float32, device=device)
+                        z_tensor = torch.tensor(z_norm, dtype=torch.float32, device=device) if use_z else None
+                        current = build_rollout_window(
+                            sequence, start_step, window_size, feature=feature,
+                            z_norm=z_tensor, use_features=use_features, use_z=use_z
+                        )
+                        pred = None
+                        for offset in range(horizon):
+                            pred = decode_next_spectrum(model, current, prediction_target)
+                            if offset + 1 < horizon:
+                                next_z = z_tensor[start_step + offset + 1:start_step + offset + 2] if use_z else None
+                                next_input = concat_condition_torch(
+                                    pred.unsqueeze(1), feature=feature if use_features else None,
+                                    z_values=next_z
+                                )
+                                current = torch.cat([current[:, 1:, :], next_input], dim=1)
+                        target = sequence[:, start_step + horizon, :]
+                        error = pred - target
+                        count += target.numel()
+                        true_sum += float(torch.sum(target).cpu())
+                        true_sq_sum += float(torch.sum(target ** 2).cpu())
+                        squared_error_sum += float(torch.sum(error ** 2).cpu())
+                summary = regression_from_sums(count, true_sum, true_sq_sum, squared_error_sum)
+                summary["horizon"] = int(horizon)
+                summary["origin"] = origin_mode
+                summary["n_start_positions"] = int(len(start_indices))
+                origin_result[str(horizon)] = summary
+            results[origin_mode] = origin_result
+    return results
+
+
 def build_rollout_window(sequence, start_step, window_size, feature=None, z_norm=None, use_features=False, use_z=False):
     """Build an initial window ending at a shared propagation index."""
     prefix = sequence[:, :1, :].expand(-1, window_size - 1, -1)
@@ -754,7 +887,8 @@ def main():
         data.shape[1],
         hidden=args.hidden,
         output_activation=args.output_activation,
-        conditioning_dim=conditioning_dim
+        conditioning_dim=conditioning_dim,
+        lstm_implementation=args.lstm_implementation,
     ).to(device)
     model.window_size = int(args.window_size)
     load_model_init(model, args.init_from, device)
@@ -788,6 +922,14 @@ def main():
 
     for epoch in range(args.epochs):
         epoch_start = time.time()
+        if (
+            args.stage2_learning_rate is not None
+            and args.stage2_start_epoch is not None
+            and epoch + 1 == args.stage2_start_epoch
+        ):
+            for group in optimizer.param_groups:
+                group["lr"] = args.stage2_learning_rate
+            logging.info("Applied second-stage learning rate %.6g at epoch %d", args.stage2_learning_rate, epoch + 1)
         model.train()
         feedback_probability = 0.0
         if args.training_mode == "one_step":
@@ -982,6 +1124,16 @@ def main():
         use_z=use_z,
         prediction_target=args.prediction_target
     )
+    fixed_horizons = evaluate_fixed_horizons(
+        model, data_test, args.window_size, device, args.eval_fixed_horizons,
+        origins=args.fixed_horizon_origins,
+        batch_size=args.autoregressive_eval_batch_size,
+        features_test=features_test,
+        z_norm=z_norm,
+        use_features=use_features,
+        use_z=use_z,
+        prediction_target=args.prediction_target,
+    )
     metrics = {
         "data": args.data,
         "data_shape": list(data.shape),
@@ -990,6 +1142,9 @@ def main():
         "split_mode": "explicit" if explicit_split else "test_fraction",
         "window_size": args.window_size,
         "hidden": args.hidden,
+        "lstm_implementation": args.lstm_implementation,
+        "stage2_learning_rate": args.stage2_learning_rate,
+        "stage2_start_epoch": args.stage2_start_epoch,
         "grad_clip": args.grad_clip,
         "output_activation": args.output_activation,
         "conditioning_mode": conditioning_mode,
@@ -1026,6 +1181,8 @@ def main():
         "autoregressive_r2": autoreg["r2"],
         "autoregressive_final_mse": autoreg["final_mse"],
         "autoregressive_final_r2": autoreg["final_r2"],
+        "fixed_horizon_origins": args.fixed_horizon_origins,
+        "fixed_horizon_metrics": fixed_horizons,
     }
 
     logging.info("Saving outputs to %s", args.output_dir)
@@ -1038,6 +1195,8 @@ def main():
                 {"Y_submit": stepwise["pred"], "Y_test": stepwise["true"]})
     sio.savemat(os.path.join(args.output_dir, "autoregressive_predictions.mat"),
                 {"Y_submit": autoreg["pred"], "Y_test": autoreg["true"]})
+    if fixed_horizons:
+        write_json_atomic(os.path.join(args.output_dir, "fixed_horizon_metrics.json"), fixed_horizons)
     logging.info("Final metrics:\n%s", json.dumps(metrics, indent=2))
 
 

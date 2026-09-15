@@ -1136,3 +1136,37 @@ Check completion:
 tail -f /mnt/Luna.jl-master/rnn_visual_diagnostics/data_dynamics_comparison.nohup.log
 test -f /mnt/Luna.jl-master/rnn_visual_diagnostics/data_dynamics_comparison/COMPLETED && echo completed
 ```
+
+## Controlled simple/complex 0--5 cm RNN benchmark
+
+```bash
+source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
+cd "$LUNA_PROJECT/examples/simple_interface"
+mkdir -p /mnt/Luna.jl-master/rnn_complexity_benchmark
+
+nohup julia --project="$LUNA_PROJECT" generate_rnn_complexity_benchmark.jl --class simple \
+  --output-dir /mnt/Luna.jl-master/rnn_complexity_benchmark/simple_candidates --count 1600 \
+  > /mnt/Luna.jl-master/rnn_complexity_benchmark/simple_generation.log 2>&1 &
+nohup julia --project="$LUNA_PROJECT" generate_rnn_complexity_benchmark.jl --class complex \
+  --output-dir /mnt/Luna.jl-master/rnn_complexity_benchmark/complex_candidates --count 1600 \
+  > /mnt/Luna.jl-master/rnn_complexity_benchmark/complex_generation.log 2>&1 &
+
+cd "$AI_AR_HCF_REPO/rnnnonlinear-master/rnnnonlinear-master"
+python3 prepare_rnn_complexity_benchmark.py \
+  --simple-dir /mnt/Luna.jl-master/rnn_complexity_benchmark/simple_candidates \
+  --complex-dir /mnt/Luna.jl-master/rnn_complexity_benchmark/complex_candidates \
+  --output-dir /mnt/Luna.jl-master/rnn_complexity_benchmark/processed
+```
+
+## Raw4 global-log forward model and RL dependencies
+
+```bash
+source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
+cd "$LUNA_PROJECT/examples/simple_interface"
+python3 create_raw4_feature_view.py \
+  --input-dir "$LUNA_LEGACY_DATA_ROOT/processed_data_t650_v7_global_log" \
+  --output-dir "$LUNA_LEGACY_DATA_ROOT/processed_t650_global_log_raw4"
+
+python3 -m venv --system-site-packages /mnt/AI-AR-HCF-UPPE-Luna-Modeling/.venv_rl
+/mnt/AI-AR-HCF-UPPE-Luna-Modeling/.venv_rl/bin/pip install -r requirements-rl.txt
+```

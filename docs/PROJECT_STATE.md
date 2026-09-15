@@ -81,3 +81,9 @@ Binary presentation and submission files are intentionally not tracked in normal
 5. Compare the new 101- and 201-point no-detach horizon sweep with the 51-point baseline to quantify the rollout-length limit of the RNN.
 6. Compare temporal CNN and temporal Transformer under the same early-dense and temporal-selection metrics.
 7. Start forward-surrogate-based inverse design before training a standalone inverse model.
+
+## Controlled 0--5 cm RNN benchmark and RL (2026-09-15)
+
+- A new controlled Luna benchmark will generate simple and complex spectra over 0--5 cm with 200 z planes and 251 wavelength bins. Each class retains 1,250 train and 50 test trajectories, matching the reference SC RNN scale.
+- The PyTorch RNN now includes a Keras-compatible ReLU-LSTM option and fixed 1/2/3/4-step recursive metrics from all starts and z=0.
+- RL inverse design will use a raw4 t0p6 global-log forward surrogate. Only energy, tau, pressure, and diameter are actions; the existing 15-feature optimizer is not a physically valid RL environment.

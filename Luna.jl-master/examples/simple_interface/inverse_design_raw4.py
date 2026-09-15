@@ -57,15 +57,19 @@ def main():
     for _ in range(args.steps):
         optimizer.zero_grad()
         scaled = (raw_lower + unit * raw_span - mean) / scale
-        log_power = model(scaled) * float(norm["log_std"]) + float(norm["log_mean"])
+        _, prediction = model(scaled)
+        log_power = prediction * float(norm["log_std"]) + float(norm["log_mean"])
         power = torch.pow(10.0, torch.clamp(log_power, -30.0, 30.0))
         scores = torch.sum(power[:, uv_mask], dim=1) / (torch.sum(power, dim=1) + 1e-20)
+        scores = torch.clamp(scores, 0.0, 1.0)
         (-scores.mean()).backward(); optimizer.step(); unit.data.clamp_(0.0, 1.0)
     scores = scores.detach().cpu().numpy(); raw = (raw_lower + unit * raw_span).detach().cpu().numpy()
     order = np.argsort(scores)[::-1][:args.top_k]
-    rows = [{"rank": int(rank + 1), "uv_fraction_surrogate": float(scores[i]),
-             "energy_uj": float(raw[i, 0]), "tau_fs": float(raw[i, 1]),
-             "pressure_bar": float(raw[i, 2]), "diameter_um": float(raw[i, 3])}
+    rows = [{"rank": int(rank + 1), "uv_fraction_surrogate": float(np.clip(scores[i], 0.0, 1.0)),
+             "energy_j": float(raw[i, 0]), "tau_s": float(raw[i, 1]),
+             "pressure_bar": float(raw[i, 2]), "diameter_m": float(raw[i, 3] * 1e-6),
+             "energy_uj": float(raw[i, 0] * 1e6), "tau_fs": float(raw[i, 1] * 1e15),
+             "diameter_um": float(raw[i, 3])}
             for rank, i in enumerate(order)]
     with open(os.path.join(args.output_dir, "inverse_candidates.csv"), "w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(rows[0])); writer.writeheader(); writer.writerows(rows)

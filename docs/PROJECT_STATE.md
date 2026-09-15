@@ -1,6 +1,6 @@
 # Project state
 
-Last updated: 2026-09-08
+Last updated: 2026-09-15
 
 ## Current objective
 
@@ -93,3 +93,11 @@ Binary presentation and submission files are intentionally not tracked in normal
 - A raw4 global-log view build is running at `/mnt/Luna.jl-master/processed_t650_global_log_raw4`; RL training remains gated on final-spectrum forward-surrogate validation.
 - The raw4 Banded MLP forward surrogate completed with test `Final_LogPower_R2=0.9831` and `UV_LogPower_R2=0.9585`. Its UV-fraction validation gate also passed: Spearman `0.9619`, Pearson `0.9295`, and top-50 recall `0.34`. SAC smoke completed and exported an agent plus candidate and Luna-validation files; three formal 200k-step seeds are next.
 - Formal raw4 SAC seeds `123`, `456`, and `789` are running serially under `/mnt/Luna.jl-master/rl_inverse_design/rl_formal_launcher.pid`; the runner checks the forward-quality gate before each matrix run and saves one complete directory per seed.
+
+## Controlled benchmark and RL status update (2026-09-15)
+
+- The controlled `0--5 cm / 200 z / 251 wavelength` benchmark is active on cloud. The Simple candidate pool is complete at `1600/1600`; the Complex pool remains under generation in the PPT-safe strongly nonlinear domain. Dataset ranking, MATLAB export, and Keras/PyTorch training begin only after both pools complete.
+- The fixed `1/2/3/4` recursive-step evaluator is implemented and smoke-tested. It remains to be applied to every final benchmark checkpoint and the current best Luna short-horizon RNN checkpoint.
+- The raw4 Banded-MLP gate passed: `Final_LogPower_R2=0.9831`, `UV_LogPower_R2=0.9585`, and UV-fraction Spearman correlation `0.9619`.
+- Formal SAC seeds `123/456/789` completed. Their first candidate CSV files mislabelled units; the legacy raw4 schema is mixed (`energy` in J, `tau` in s, `pressure` in bar, and `diameter` already in um). Do not execute the original files with Luna. Candidates must be re-exported through `export_rl_candidates.py`, which re-scores frozen agents, clamps UV fraction to `[0,1]`, and writes both canonical SI and simulator-facing units before validation.
+- Current RL is a final-spectrum UV-fraction proof of closure. Temporal clean-UV/dispersive-wave rewards are deferred until corrected candidates have Luna validation results.

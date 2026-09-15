@@ -1214,4 +1214,31 @@ nohup bash "$AI_AR_HCF_REPO/scripts/run_raw4_rl_seeds.sh" \
   > /mnt/Luna.jl-master/rl_inverse_design/logs/run_raw4_rl_seeds.nohup.log 2>&1 < /dev/null &
 echo $! > /mnt/Luna.jl-master/rl_inverse_design/rl_formal_launcher.pid
 ```
+
+### Re-export formal SAC candidates and validate them with Luna
+
+The first formal-run candidate CSVs have a unit-label bug. Re-export candidates
+from the saved agents, deduplicate them, and only then start HDF5 validation:
+
+```bash
+source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
+cd "$AI_AR_HCF_REPO"
+nohup bash scripts/run_rl_candidate_reexport_and_luna_validation.sh \
+  > /mnt/Luna.jl-master/rl_inverse_design/luna_validation_reexport_v2/nohup.log 2>&1 < /dev/null &
+echo $! > /mnt/Luna.jl-master/rl_inverse_design/luna_validation_reexport_v2/launcher.pid
+```
+
+### Controlled RNN benchmark pipeline
+
+This runner waits for the two candidate pools, exports raw-power/original-dBm/
+per-sample-minmax `.mat` files, then trains the Keras/PyTorch three-seed matrix
+serially:
+
+```bash
+source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
+cd "$AI_AR_HCF_REPO"
+nohup bash scripts/run_rnn_complexity_benchmark_pipeline.sh \
+  > /mnt/Luna.jl-master/rnn_complexity_benchmark/logs/pipeline.nohup.log 2>&1 < /dev/null &
+echo $! > /mnt/Luna.jl-master/rnn_complexity_benchmark/pipeline_launcher.pid
+```
 ```

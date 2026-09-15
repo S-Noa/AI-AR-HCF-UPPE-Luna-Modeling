@@ -195,3 +195,18 @@ Use this file as the lightweight memory for model and data experiments. Keep eac
 - Input domain: t0p6 global-log data and raw physical inputs only: energy, tau, pressure, diameter.
 - Objective: final-spectrum linear-power UV fraction.
 - Comparison: SAC, random/Sobol, differential evolution, and constrained raw4 gradient optimization. Every top candidate requires Luna validation.
+
+## 2026-09-15: Controlled benchmark continuation and corrected RL validation
+
+| Line | Status | Configuration | Interpretation boundary |
+| --- | --- | --- | --- |
+| Simple/Complex Luna generation | Running | `0--5 cm`, 200 z points, 251 wavelength points, 1600 candidates/class | Simple is complete; Complex is still generating in a PPT-safe nonlinear domain. |
+| Keras/PyTorch comparison | Queued | 2 classes x 2 target representations x 2 frameworks x 3 seeds | No complexity conclusion before the full matrix completes. |
+| Fixed horizons | Smoke passed | exact 1/2/3/4 recursive steps, all-start and zero-start | Diagnostic implementation only until run on selected checkpoints. |
+| Raw4 SAC | Training complete; verification pending | three 200k-step seeds, final-spectrum UV reward | First candidate CSVs have invalid display-unit labels and must not be sent to Luna. |
+
+The raw4 scaler uses a legacy mixed-unit schema: energy is J, duration is s,
+pressure is bar, and diameter is already um. The corrected candidate export
+records canonical SI fields (`energy_j`, `tau_s`, `diameter_m`) and
+simulator-facing fields (`energy_uj`, `tau_fs`, `diameter_um`). Luna validation
+is required before reporting an inverse-design result.

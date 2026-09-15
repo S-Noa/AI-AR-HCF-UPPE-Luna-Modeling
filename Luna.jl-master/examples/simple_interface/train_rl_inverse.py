@@ -85,6 +85,9 @@ def main():
         log_power = pred * log_std + log_mean
         linear_power = torch.pow(10.0, torch.clamp(log_power, -30.0, 30.0))
         score = torch.sum(linear_power[:, uv_mask], dim=1) / (torch.sum(linear_power, dim=1) + 1e-20)
+        # The ratio is physically bounded. Clamp tiny floating-point overshoots
+        # before it is used by the RL environment or written to candidate files.
+        score = torch.clamp(score, 0.0, 1.0)
         return score, x
 
     def predictor(unit_params):
@@ -136,6 +139,7 @@ def main():
         log_power = pred * log_std + log_mean
         power = torch.pow(10.0, torch.clamp(log_power, -30.0, 30.0))
         score = torch.sum(power[:, uv_mask], dim=1) / (torch.sum(power, dim=1) + 1e-20)
+        score = torch.clamp(score, 0.0, 1.0)
         (-score.mean()).backward()
         optimizer.step()
         unit.data.clamp_(0.0, 1.0)
@@ -146,9 +150,14 @@ def main():
     rows = []
     for rank, (score, unit_params, method) in enumerate(candidates[:args.top_k], start=1):
         raw = lower + unit_params * (upper - lower)
-        rows.append({"rank": rank, "method": method, "uv_fraction_surrogate": score,
-                     "energy_uj": float(raw[0]), "tau_fs": float(raw[1]),
-                     "pressure_bar": float(raw[2]), "diameter_um": float(raw[3])})
+        # The established preprocessing schema is mixed-unit: energy is J,
+        # tau is s, pressure is bar, and diameter is already in um.
+        rows.append({"rank": rank, "method": method,
+                     "uv_fraction_surrogate": float(np.clip(score, 0.0, 1.0)),
+                     "energy_j": float(raw[0]), "tau_s": float(raw[1]),
+                     "pressure_bar": float(raw[2]), "diameter_m": float(raw[3] * 1e-6),
+                     "energy_uj": float(raw[0] * 1e6), "tau_fs": float(raw[1] * 1e15),
+                     "diameter_um": float(raw[3])})
     with open(os.path.join(args.output_dir, "inverse_candidates.csv"), "w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=list(rows[0]))
         writer.writeheader(); writer.writerows(rows)

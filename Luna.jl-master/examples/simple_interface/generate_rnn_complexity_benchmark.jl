@@ -130,10 +130,14 @@ function main()
     end
     output_dir = abspath(args["output-dir"])
     mkpath(output_dir)
-    ranges = ranges_for(args["class"])
-    println("Generating $(args[\"class\"]) candidates in $output_dir")
-    println("count=$(args[\"count\"]) start=$(args[\"start-index\"]) seed=$(args[\"seed\"]) L=5 cm saveN=200")
-    for index in args["start-index"]:(args["start-index"] + args["count"] - 1)
+    label = args["class"]
+    count = args["count"]
+    start_index = args["start-index"]
+    seed = args["seed"]
+    ranges = ranges_for(label)
+    println("Generating $label candidates in $output_dir")
+    println("count=$count start=$start_index seed=$seed L=5 cm saveN=200")
+    for index in start_index:(start_index + count - 1)
         filename = @sprintf("candidate_%04d.h5", index)
         filepath = joinpath(output_dir, filename)
         marker = filepath * ".done"
@@ -141,7 +145,7 @@ function main()
             println("[$index] already complete, skipping")
             continue
         end
-        rng = MersenneTwister(args["seed"] + index)
+        rng = MersenneTwister(seed + index)
         energy = sample_uniform(rng, ranges.energy)
         tau = sample_uniform(rng, ranges.tau)
         pressure = sample_uniform(rng, ranges.pressure)
@@ -151,7 +155,7 @@ function main()
         try
             println(@sprintf("[%d] E=%.4f uJ tau=%.3f fs p=%.3f bar d=%.3f um", index, energy, tau, pressure, diameter))
             run_sample(temporary, energy, tau, pressure, diameter)
-            write_metadata(temporary, args["class"], index, args["seed"], energy, tau, pressure, diameter)
+            write_metadata(temporary, label, index, seed, energy, tau, pressure, diameter)
             mv(temporary, filepath; force=true)
             open(marker, "w") do io
                 println(io, "complete=true")

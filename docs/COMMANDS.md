@@ -1255,4 +1255,16 @@ final spectra, and a report under:
 ```text
 /mnt/Luna.jl-master/rl_inverse_design/luna_validation_reexport_v3/analysis/
 ```
+
+### Create the successful-candidate spectral-evolution montage
+
+```bash
+source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
+bash "$AI_AR_HCF_REPO/scripts/run_rl_luna_evolution_montage.sh"
+```
+
+This creates `successful_luna_spectral_evolution_montage.png` in the same
+analysis directory. The scale is relative per candidate; consult the annotated
+energy transmission values rather than interpreting a bright early-z region as
+high usable output energy.
 ```

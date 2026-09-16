@@ -1267,4 +1267,17 @@ This creates `successful_luna_spectral_evolution_montage.png` in the same
 analysis directory. The scale is relative per candidate; consult the annotated
 energy transmission values rather than interpreting a bright early-z region as
 high usable output energy.
+
+### Train the separate raw4 z = 5 cm forward surrogate
+
+```bash
+source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
+cd "$AI_AR_HCF_REPO"
+nohup bash scripts/run_raw4_z5cm_forward.sh \
+  > /mnt/Luna.jl-master/rl_inverse_design/raw4_z5cm_banded_mlp_v1/nohup.log 2>&1 < /dev/null &
+echo $! > /mnt/Luna.jl-master/rl_inverse_design/raw4_z5cm_banded_mlp_v1/launcher.pid
+```
+
+This creates an independent 5 cm target dataset and does not change the 50 cm
+raw4 model or its preprocessing statistics.
 ```

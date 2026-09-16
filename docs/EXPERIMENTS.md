@@ -224,3 +224,10 @@ writes `luna_validation_failures.csv`.
 - Luna `stats/energy` gives final-to-input transmission of only `2.17e-20--3.02e-13`; maximum electron density is `3.33e23--1.93e24 m^-3`.
 - Interpretation: the UV-fraction objective selects severely ionising, near-zero-transmission solutions. It is not an acceptable inverse-design objective by itself.
 - The frozen raw4 forward model does rank absolute spectral proxies on its held-out test set: UV-power-proxy Spearman `0.9438`, total-power-proxy Spearman `0.9764`. The follow-up reward should maximize absolute UV power, enforce a useful output-power floor, and later add temporal/plasma feasibility terms from a propagation-map surrogate or Luna verification.
+
+### Fixed-z = 5 cm raw4 subtask
+
+- Source: `processed_t650_global_log_raw4/y_temporal_*`, where every sample has 501 common saved z planes and `z=5 cm` is index `50`.
+- Output view: `/mnt/Luna.jl-master/processed_t650_global_log_raw4_z5cm`.
+- Processing: recover physical log-power from the source standardized maps, fit a new train-only global log mean/std at 5 cm, then standardize the new final-spectrum targets.
+- Model: `/mnt/Luna.jl-master/rl_inverse_design/raw4_z5cm_banded_mlp_v1`. It must pass final-spectrum and absolute UV/total-power ranking gates before a constrained z=5 cm RL run is considered.

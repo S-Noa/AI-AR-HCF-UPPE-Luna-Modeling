@@ -1280,4 +1280,33 @@ echo $! > /mnt/Luna.jl-master/rl_inverse_design/raw4_z5cm_banded_mlp_v1/launcher
 
 This creates an independent 5 cm target dataset and does not change the 50 cm
 raw4 model or its preprocessing statistics.
+
+### Run the constrained z = 5 cm RL smoke and direct spectral-evolution validation
+
+The objective is absolute UV-power proxy plus a total-output-power floor; it is not the degenerate UV-fraction-only reward used in the earlier 50 cm run.
+
+```bash
+source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
+nohup bash "$AI_AR_HCF_REPO/scripts/run_raw4_z5cm_constrained_rl_smoke.sh" \
+  > /mnt/Luna.jl-master/rl_inverse_design/raw4_z5cm_constrained_rl_smoke_v1/nohup.log 2>&1 < /dev/null &
+echo $! > /mnt/Luna.jl-master/rl_inverse_design/raw4_z5cm_constrained_rl_smoke_v1/launcher.pid
+```
+
+After `COMPLETED` exists, run direct Luna validation in the background. This creates full `Eomega(z,omega)` HDF5 outputs over `0--5 cm`, final-spectrum overlays, and a spectral-evolution montage.
+
+```bash
+source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
+nohup bash "$AI_AR_HCF_REPO/scripts/run_raw4_z5cm_luna_validation.sh" \
+  > /mnt/Luna.jl-master/rl_inverse_design/raw4_z5cm_constrained_rl_smoke_v1/luna_validation/nohup.log 2>&1 < /dev/null &
+echo $! > /mnt/Luna.jl-master/rl_inverse_design/raw4_z5cm_constrained_rl_smoke_v1/luna_validation/launcher.pid
+```
+
+Key outputs:
+
+```text
+.../luna_validation/analysis/successful_luna_final_spectra.png
+.../luna_validation/analysis/surrogate_vs_luna_uv_fraction.png
+.../luna_validation/analysis/luna_spectral_evolution_montage.png
+.../luna_validation/analysis/luna_validation_metrics.csv
+```
 ```

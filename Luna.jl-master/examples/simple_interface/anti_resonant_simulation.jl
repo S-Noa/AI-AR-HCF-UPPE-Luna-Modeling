@@ -877,6 +877,7 @@ function parse_command_line_args()
         "tau" => 15.0,
         "pressure" => 10.0,
         "chirp" => 0.0,
+        "length-cm" => 50.0,
         "output" => "anti_resonant_simulation.h5",
         "export-fiber-model" => false,
         "export-dir" => "fiber_model_exports",
@@ -934,6 +935,10 @@ function parse_command_line_args()
             i += 1
             i <= length(ARGS) || error("--chirp 需要一个数值参数")
             args["chirp"] = parse(Float64, ARGS[i])
+        elseif arg == "--length-cm"
+            i += 1
+            i <= length(ARGS) || error("--length-cm requires a numeric value")
+            args["length-cm"] = parse(Float64, ARGS[i])
         elseif arg == "--output" || arg == "-o"
             i += 1
             i <= length(ARGS) || error("--output 需要一个文件路径")
@@ -1087,6 +1092,7 @@ Options:
   --tau VALUE                         Pulse duration in fs (default: 15)
   -p, --pressure VALUE                Gas pressure in bar (default: 10)
   -c, --chirp VALUE                   Chirp parameter (default: 0)
+  --length-cm VALUE                   Propagation length in cm (default: 50)
   -o, --output FILE                   Simulation HDF5 output file
   --export-fiber-model                Export fibre model data (.mat/.csv/.json)
   --export-dir DIR                    Export directory (default: fiber_model_exports)
@@ -1159,6 +1165,10 @@ function validate_parameters(args)
     end
     if pressure < 0.5 || pressure > 50.0
         println("警告: 气压 $pressure bar 超出典型范围 [0.5, 50] bar")
+    end
+
+    if args["length-cm"] <= 0.0
+        error("--length-cm must be positive")
     end
 
     if args["export-step-nm"] <= 0.0
@@ -2186,7 +2196,7 @@ function main()
     output_file = args["output"]
     export_fiber_model = args["export-fiber-model"]
 
-    FIXED_FLENGTH = 0.5
+    FIXED_FLENGTH = args["length-cm"] * 1e-2
     gas = :Ar
     λ0 = 1030e-9
     λlims_sim = (200e-9, 2500e-9)

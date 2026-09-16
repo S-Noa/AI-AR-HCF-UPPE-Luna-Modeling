@@ -232,3 +232,9 @@ writes `luna_validation_failures.csv`.
 - Processing: recover physical log-power from the source standardized maps, fit a new train-only global log mean/std at 5 cm, then standardize the new final-spectrum targets.
 - Model: `/mnt/Luna.jl-master/rl_inverse_design/raw4_z5cm_banded_mlp_v1`. It must pass final-spectrum and absolute UV/total-power ranking gates before a constrained z=5 cm RL run is considered.
 - Completed forward results: test `Final_LogPower_R2=0.9855`; `UV_LogPower_R2=0.9647`; UV-fraction Spearman `0.9708`; UV-power-proxy Spearman `0.9804`; total-power-proxy Spearman `0.9444`. The next task is constrained RL with absolute UV-power reward, not another UV-fraction run.
+
+### Fixed-z = 5 cm constrained RL and physical visualization
+
+- Reward: normalized predicted `log10(UV power, 200--700 nm)` minus a penalty when predicted `log10(total output power)` falls below the train-set 25th-percentile floor. This prevents the 50 cm UV-fraction failure mode, where nearly zero transmitted power makes the remaining spectrum appear UV-dominated.
+- Smoke policy: `raw4_z5cm_constrained_rl_smoke_v1`, SAC seed `123`, `10,000` timesteps, top `10` candidates. It is a feasibility check before any multi-seed formal comparison.
+- Validation: direct `anti_resonant_simulation.jl --length-cm 5` writes an HDF5 map for every runnable candidate. `evaluate_rl_luna_validation.py` outputs the final-spectrum comparison, UV fraction and energy-transmission statistics; `plot_rl_luna_evolution_montage.py` writes `luna_spectral_evolution_montage.png`, with wavelength on the horizontal axis and physical propagation distance on the vertical axis.

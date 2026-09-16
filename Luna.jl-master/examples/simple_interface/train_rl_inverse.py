@@ -27,6 +27,11 @@ def parse_args():
     parser.add_argument("--action-scale", type=float, default=0.10)
     parser.add_argument("--top-k", type=int, default=20)
     parser.add_argument("--baseline-budget", type=int, default=200000)
+    parser.add_argument("--objective", choices=["uv_fraction", "constrained_uv_power"], default="uv_fraction")
+    parser.add_argument("--uv-power-low-percentile", type=float, default=5.0)
+    parser.add_argument("--uv-power-high-percentile", type=float, default=95.0)
+    parser.add_argument("--total-power-floor-percentile", type=float, default=25.0)
+    parser.add_argument("--total-power-penalty", type=float, default=1.0)
     parser.add_argument("--no-cuda", action="store_true")
     parser.add_argument("--band-head-hidden", type=int, default=128)
     parser.add_argument("--uv-band-head-hidden", type=int, default=256)
@@ -76,6 +81,18 @@ def main():
     log_std = float(output_norm["log_std"])
     model = build_model(4, y_train.shape[1], args, wavelength_range, device)
 
+    # Fit the physical reward scale from training targets only. The constraint
+    # makes an almost-zero output with a nominally high UV fraction unattractive.
+    train_log_power = y_train.astype(np.float64) * log_std + log_mean
+    train_power = np.power(10.0, np.clip(train_log_power, -30.0, 30.0))
+    train_uv_power = train_power[:, (wavelength_nm >= 200.0) & (wavelength_nm <= 700.0)].sum(axis=1)
+    train_total_power = train_power.sum(axis=1)
+    log_uv_train = np.log10(np.maximum(train_uv_power, 1e-30))
+    log_total_train = np.log10(np.maximum(train_total_power, 1e-30))
+    uv_low, uv_high = np.percentile(log_uv_train, [args.uv_power_low_percentile, args.uv_power_high_percentile])
+    total_floor = float(np.percentile(log_total_train, args.total_power_floor_percentile))
+    total_scale = max(float(np.percentile(log_total_train, 95.0) - np.percentile(log_total_train, 5.0)), 1e-6)
+
     def scores_from_unit(unit_params, require_grad=False):
         unit = np.asarray(unit_params, dtype=np.float32)
         raw = lower + unit * (upper - lower)
@@ -84,11 +101,31 @@ def main():
         _, pred = model(x)
         log_power = pred * log_std + log_mean
         linear_power = torch.pow(10.0, torch.clamp(log_power, -30.0, 30.0))
-        score = torch.sum(linear_power[:, uv_mask], dim=1) / (torch.sum(linear_power, dim=1) + 1e-20)
-        # The ratio is physically bounded. Clamp tiny floating-point overshoots
-        # before it is used by the RL environment or written to candidate files.
-        score = torch.clamp(score, 0.0, 1.0)
+        uv_power = torch.sum(linear_power[:, uv_mask], dim=1)
+        total_power = torch.sum(linear_power, dim=1)
+        fraction = torch.clamp(uv_power / (total_power + 1e-20), 0.0, 1.0)
+        if args.objective == "uv_fraction":
+            score = fraction
+        else:
+            log_uv = torch.log10(torch.clamp(uv_power, min=1e-30))
+            log_total = torch.log10(torch.clamp(total_power, min=1e-30))
+            uv_score = torch.clamp((log_uv - uv_low) / max(uv_high - uv_low, 1e-6), 0.0, 1.0)
+            total_deficit = torch.relu((total_floor - log_total) / total_scale)
+            score = uv_score - args.total_power_penalty * total_deficit
         return score, x
+
+    def output_metrics(unit_params):
+        with torch.no_grad():
+            unit = np.asarray(unit_params, dtype=np.float32)
+            raw = lower + unit * (upper - lower)
+            scaled = scaler.transform(raw).astype(np.float32)
+            _, pred = model(torch.tensor(scaled, device=device))
+            power = torch.pow(10.0, torch.clamp(pred * log_std + log_mean, -30.0, 30.0))
+            uv_power = torch.sum(power[:, uv_mask], dim=1)
+            total_power = torch.sum(power, dim=1)
+            fraction = torch.clamp(uv_power / (total_power + 1e-20), 0.0, 1.0)
+            return (fraction.cpu().numpy(), torch.log10(torch.clamp(uv_power, min=1e-30)).cpu().numpy(),
+                    torch.log10(torch.clamp(total_power, min=1e-30)).cpu().numpy())
 
     def predictor(unit_params):
         with torch.no_grad():
@@ -138,8 +175,16 @@ def main():
         _, pred = model(scaled)
         log_power = pred * log_std + log_mean
         power = torch.pow(10.0, torch.clamp(log_power, -30.0, 30.0))
-        score = torch.sum(power[:, uv_mask], dim=1) / (torch.sum(power, dim=1) + 1e-20)
-        score = torch.clamp(score, 0.0, 1.0)
+        uv_power = torch.sum(power[:, uv_mask], dim=1)
+        total_power = torch.sum(power, dim=1)
+        fraction = torch.clamp(uv_power / (total_power + 1e-20), 0.0, 1.0)
+        if args.objective == "uv_fraction":
+            score = fraction
+        else:
+            log_uv = torch.log10(torch.clamp(uv_power, min=1e-30))
+            log_total = torch.log10(torch.clamp(total_power, min=1e-30))
+            uv_score = torch.clamp((log_uv - uv_low) / max(uv_high - uv_low, 1e-6), 0.0, 1.0)
+            score = uv_score - args.total_power_penalty * torch.relu((total_floor - log_total) / total_scale)
         (-score.mean()).backward()
         optimizer.step()
         unit.data.clamp_(0.0, 1.0)
@@ -150,10 +195,14 @@ def main():
     rows = []
     for rank, (score, unit_params, method) in enumerate(candidates[:args.top_k], start=1):
         raw = lower + unit_params * (upper - lower)
+        fraction, log_uv, log_total = output_metrics(unit_params[None, :])
         # The established preprocessing schema is mixed-unit: energy is J,
         # tau is s, pressure is bar, and diameter is already in um.
-        rows.append({"rank": rank, "method": method,
-                     "uv_fraction_surrogate": float(np.clip(score, 0.0, 1.0)),
+        rows.append({"rank": rank, "seed": args.seed, "method": method,
+                     "uv_fraction_surrogate": float(fraction[0]),
+                     "objective_score": float(score),
+                     "surrogate_log10_uv_power": float(log_uv[0]),
+                     "surrogate_log10_total_power": float(log_total[0]),
                      "energy_j": float(raw[0]), "tau_s": float(raw[1]),
                      "pressure_bar": float(raw[2]), "diameter_m": float(raw[3] * 1e-6),
                      "energy_uj": float(raw[0] * 1e6), "tau_fs": float(raw[1] * 1e15),
@@ -168,6 +217,10 @@ def main():
                          f"-p {row['pressure_bar']:.6g} -d {row['diameter_um']:.6g} -t 0.65\n")
     with open(os.path.join(args.output_dir, "rl_summary.json"), "w", encoding="utf-8") as handle:
         json.dump({"seed": args.seed, "timesteps": args.timesteps, "device": str(device),
+                   "objective": args.objective,
+                   "objective_calibration": {"uv_log10_low": float(uv_low), "uv_log10_high": float(uv_high),
+                                             "total_log10_floor": total_floor, "total_log10_scale": total_scale,
+                                             "total_power_penalty": args.total_power_penalty},
                    "parameter_lower": lower.tolist(), "parameter_upper": upper.tolist(), "top_k": rows}, handle, indent=2)
 
 

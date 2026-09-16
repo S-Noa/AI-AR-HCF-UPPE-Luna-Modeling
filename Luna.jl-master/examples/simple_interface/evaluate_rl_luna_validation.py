@@ -117,7 +117,7 @@ def main():
         row = {
             "rank": rank,
             "seed": int(candidate["seed"]),
-            "surrogate_uv_fraction": float(candidate["uv_fraction_surrogate"]),
+            "surrogate_uv_fraction": float(candidate.get("surrogate_uv_fraction", candidate["uv_fraction_surrogate"])),
             "luna_uv_fraction_200_700": metrics["luna_uv_fraction_200_700"],
             "luna_final_peak_nm": metrics["luna_final_peak_nm"],
             "luna_uv_peak_nm": metrics["luna_uv_peak_nm"],

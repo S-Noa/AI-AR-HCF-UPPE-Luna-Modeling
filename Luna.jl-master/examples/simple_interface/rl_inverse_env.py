@@ -16,7 +16,8 @@ class SurrogateUVEnv(gym.Env):
         self.max_steps = int(max_steps)
         self.action_scale = float(action_scale)
         self.action_space = spaces.Box(low=-1.0, high=1.0, shape=(4,), dtype=np.float32)
-        self.observation_space = spaces.Box(low=0.0, high=1.0, shape=(6,), dtype=np.float32)
+        # Constrained objectives can include a penalty and therefore be negative.
+        self.observation_space = spaces.Box(low=-np.inf, high=np.inf, shape=(6,), dtype=np.float32)
         self.rng = np.random.default_rng(seed)
         self.params = None
         self.score = None

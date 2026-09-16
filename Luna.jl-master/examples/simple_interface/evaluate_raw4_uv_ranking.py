@@ -47,10 +47,12 @@ def load_model(params, checkpoint, args, device, output_dim):
     return model.to(device).eval(), wavelength_range
 
 
-def uv_fraction(standardized, log_mean, log_std, uv_mask):
+def spectral_power_metrics(standardized, log_mean, log_std, uv_mask):
     log_power = standardized * log_std + log_mean
     linear_power = np.power(10.0, np.clip(log_power, -30.0, 30.0))
-    return linear_power[:, uv_mask].sum(axis=1) / (linear_power.sum(axis=1) + 1e-20)
+    uv_power = linear_power[:, uv_mask].sum(axis=1)
+    total_power = linear_power.sum(axis=1)
+    return uv_power / (total_power + 1e-20), uv_power, total_power
 
 
 def main():
@@ -80,8 +82,12 @@ def main():
     wavelength_nm = np.linspace(wavelength_range[0], wavelength_range[1], y_test.shape[1])
     uv_mask = (wavelength_nm >= 200.0) & (wavelength_nm <= 700.0)
     norm = params["output_normalization"]
-    target_uv = uv_fraction(y_test, float(norm["log_mean"]), float(norm["log_std"]), uv_mask)
-    pred_uv = uv_fraction(prediction, float(norm["log_mean"]), float(norm["log_std"]), uv_mask)
+    target_uv, target_uv_power, target_total_power = spectral_power_metrics(
+        y_test, float(norm["log_mean"]), float(norm["log_std"]), uv_mask
+    )
+    pred_uv, pred_uv_power, pred_total_power = spectral_power_metrics(
+        prediction, float(norm["log_mean"]), float(norm["log_std"]), uv_mask
+    )
     top_k = min(args.top_k, len(target_uv))
     target_top = set(np.argsort(target_uv)[-top_k:])
     pred_top = set(np.argsort(pred_uv)[-top_k:])
@@ -94,6 +100,10 @@ def main():
         "top_k": int(top_k),
         "top_k_overlap": int(len(target_top & pred_top)),
         "top_k_recall": float(len(target_top & pred_top) / top_k),
+        "uv_power_spearman": float(spearmanr(target_uv_power, pred_uv_power).statistic),
+        "uv_power_pearson_log10": float(np.corrcoef(np.log10(target_uv_power + 1e-30), np.log10(pred_uv_power + 1e-30))[0, 1]),
+        "total_power_spearman": float(spearmanr(target_total_power, pred_total_power).statistic),
+        "total_power_pearson_log10": float(np.corrcoef(np.log10(target_total_power + 1e-30), np.log10(pred_total_power + 1e-30))[0, 1]),
     }
     with open(os.path.join(args.output_dir, "uv_ranking_metrics.json"), "w", encoding="utf-8") as handle:
         json.dump(summary, handle, indent=2)
@@ -101,6 +111,10 @@ def main():
         os.path.join(args.output_dir, "uv_ranking_predictions.npz"),
         target_uv_fraction=target_uv,
         predicted_uv_fraction=pred_uv,
+        target_uv_power_proxy=target_uv_power,
+        predicted_uv_power_proxy=pred_uv_power,
+        target_total_power_proxy=target_total_power,
+        predicted_total_power_proxy=pred_total_power,
     )
     print(json.dumps(summary, indent=2))
 

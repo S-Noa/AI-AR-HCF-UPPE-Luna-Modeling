@@ -1241,4 +1241,18 @@ nohup bash scripts/run_rnn_complexity_benchmark_pipeline.sh \
   > /mnt/Luna.jl-master/rnn_complexity_benchmark/logs/pipeline.nohup.log 2>&1 < /dev/null &
 echo $! > /mnt/Luna.jl-master/rnn_complexity_benchmark/pipeline_launcher.pid
 ```
+
+### Analyze completed raw4 RL Luna validations
+
+```bash
+source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
+bash "$AI_AR_HCF_REPO/scripts/run_rl_luna_validation_analysis.sh"
+```
+
+Outputs include `luna_validation_metrics.csv`, UV-fraction comparison plots,
+final spectra, and a report under:
+
+```text
+/mnt/Luna.jl-master/rl_inverse_design/luna_validation_reexport_v3/analysis/
+```
 ```

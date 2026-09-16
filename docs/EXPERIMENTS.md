@@ -216,3 +216,11 @@ the Luna PPT rate-table maximum after self-compression (`8.72e10 V/m` versus
 `8.63e10 V/m`). This is recorded as a non-runnable validation outcome, not a
 surrogate success. The validation runner continues past such candidates and
 writes `luna_validation_failures.csv`.
+
+### Completed final-spectrum UV-fraction validation
+
+- Requested SAC candidates: `20`; successful Luna propagations: `11`; non-runnable: `9`.
+- All successful candidates have surrogate and Luna UV fraction essentially equal to `1.0`, so fraction ranking is saturated and cannot distinguish useful solutions.
+- Luna `stats/energy` gives final-to-input transmission of only `2.17e-20--3.02e-13`; maximum electron density is `3.33e23--1.93e24 m^-3`.
+- Interpretation: the UV-fraction objective selects severely ionising, near-zero-transmission solutions. It is not an acceptable inverse-design objective by itself.
+- The frozen raw4 forward model does rank absolute spectral proxies on its held-out test set: UV-power-proxy Spearman `0.9438`, total-power-proxy Spearman `0.9764`. The follow-up reward should maximize absolute UV power, enforce a useful output-power floor, and later add temporal/plasma feasibility terms from a propagation-map surrogate or Luna verification.

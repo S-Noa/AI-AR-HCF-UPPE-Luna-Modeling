@@ -49,8 +49,9 @@ for class in simple complex; do
       keras_out="$root/results/keras_${class}_${representation}_seed${seed}"
       if [ ! -f "$keras_out/COMPLETED" ]; then
         mkdir -p "$keras_out"
-        export PYTHONPATH="$repo/rnnnonlinear-master/rnnnonlinear-master"
-        env -u PYTHONHOME PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python \
+        # The legacy TF1 environment must not inherit the project's Python
+        # paths; the current working directory already exposes its modules.
+        env -u PYTHONHOME -u PYTHONPATH PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION=python \
           "$data_root/rnn_original_code_env/miniconda3/envs/rnn_tf1/bin/python" \
           "$repo/rnnnonlinear-master/rnnnonlinear-master/run_original_keras_benchmark.py" \
           --data "$mat" --output-dir "$keras_out" \

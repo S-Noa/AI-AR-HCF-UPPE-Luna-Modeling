@@ -14,6 +14,9 @@ cd "$repo/rnnnonlinear-master/rnnnonlinear-master"
 python3 visualize_rnn_complexity_targets.py \
   --manifest "$root/processed/manifest.csv" \
   --output "$output/representative_simple_complex_targets.png"
+python3 visualize_rnn_simple_gallery.py \
+  --manifest "$root/processed/manifest.csv" \
+  --output-dir "$output/simple_gallery" --examples 12
 
 result="$root/results/pytorch_simple_original_dbm_seed123"
 if [ -f "$result/COMPLETED" ]; then

@@ -1153,6 +1153,23 @@ echo $! > /mnt/Luna.jl-master/rnn_complexity_benchmark/launcher.pid
 # 0.5 x PPT table-limit guard.
 tail -f /mnt/Luna.jl-master/rnn_complexity_benchmark/logs/complex_generation.log
 
+## Generate the approved Moderate benchmark pool
+
+The Moderate pool is independent of the Simple/Complex comparison. It generates
+1,600 candidates only; do not export or train it until a middle-complexity
+selection interval has been chosen from the final gallery.
+
+```bash
+source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
+nohup bash /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/run_rnn_moderate_generation_full.sh \
+  > /mnt/Luna.jl-master/rnn_complexity_benchmark/logs/moderate_generation.nohup.log 2>&1 < /dev/null &
+echo $! > /mnt/Luna.jl-master/rnn_complexity_benchmark/moderate_launcher.pid
+
+tail -f /mnt/Luna.jl-master/rnn_complexity_benchmark/logs/moderate_generation.log
+find /mnt/Luna.jl-master/rnn_complexity_benchmark/moderate_candidates \
+  -maxdepth 1 -type f -name 'candidate_*.h5.done' | wc -l
+```
+
 ### Fixed 1--4-step RNN evaluator smoke
 
 ```bash

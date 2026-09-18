@@ -19,6 +19,12 @@ candidate pool and add a three-class export/training matrix. The Moderate set
 must not be ranked by the existing Simple-low or Complex-high selection rule;
 its selection target will be a separately defined middle-complexity interval.
 
+The smoke gallery was reviewed and approved on 2026-09-18. The full, separate
+Moderate candidate pool therefore contains 1,600 trajectories under the same
+parameter ranges. Its final 16-quantile gallery is generated automatically and
+must be synchronized locally before defining the middle-complexity selection
+interval or starting Moderate RNN training.
+
 Two target representations are exported: `raw_power.mat` for the original Keras `load_data(..., 'dBm')` path and `per_sample_minmax.mat` for no-additional-normalization runs. Original Keras and PyTorch Keras-compatible models use the same RMSprop/MSE 50+30 epoch schedule.
 
 `train_luna_rnn.py` now supports fixed 1/2/3/4-step recursive evaluation from all valid true local histories, z=0 only, or both. This separates immediate local feedback sensitivity from long full-rollout drift.

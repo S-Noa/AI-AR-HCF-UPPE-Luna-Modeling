@@ -65,3 +65,18 @@ Review the current git diff as if you did not write it.
 Look for correctness issues, tensor-shape bugs, data leakage, checkpoint incompatibility, and unnecessary complexity.
 Do not modify files yet.
 ```
+
+## Visualization validation rule
+
+- Every experiment that is evaluated visually must generate frequency-domain
+  spectral-evolution maps in addition to scalar metrics and final-spectrum
+  plots.
+- For predictive propagation models, preserve and inspect at least three maps
+  for representative test trajectories: ground truth, teacher-forced/stepwise
+  prediction when applicable, and autoregressive or direct full-map prediction.
+- Label axes explicitly. Use physical wavelength and propagation distance when
+  available; otherwise state clearly that an axis is a wavelength or propagation
+  index in the saved target space.
+- Store the generated maps with the experiment output and report their paths in
+  the experiment notes. A result without a spectral-evolution visualization is
+  not considered visually validated.

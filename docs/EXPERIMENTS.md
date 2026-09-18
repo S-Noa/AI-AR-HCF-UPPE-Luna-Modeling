@@ -201,6 +201,7 @@ Use this file as the lightweight memory for model and data experiments. Keep eac
 | Line | Status | Configuration | Interpretation boundary |
 | --- | --- | --- | --- |
 | Simple/Complex Luna generation | Running | `0--5 cm`, 200 z points, 251 wavelength points, 1600 candidates/class | Simple is complete; Complex is still generating in a PPT-safe nonlinear domain. |
+| Moderate Luna candidate generation | Running | Independent `0--5 cm`, 200 z points, 251 wavelength points, 1600 candidates | Smoke gallery was approved; generate candidates only, then define a middle-complexity selection interval before export or RNN training. |
 | Keras/PyTorch comparison | Queued | 2 classes x 2 target representations x 2 frameworks x 3 seeds | No complexity conclusion before the full matrix completes. |
 | Fixed horizons | Smoke passed | exact 1/2/3/4 recursive steps, all-start and zero-start | Diagnostic implementation only until run on selected checkpoints. |
 | Raw4 SAC | Training complete; verification pending | three 200k-step seeds, final-spectrum UV reward | First candidate CSVs have invalid display-unit labels and must not be sent to Luna. |

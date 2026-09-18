@@ -37,7 +37,10 @@ def read_map(path, target_lambda):
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--manifest", required=True, type=Path)
+    parser.add_argument("--manifest", type=Path)
+    parser.add_argument("--candidate-dir", type=Path,
+                        help="Read candidate HDF5 files directly instead of a prepared manifest")
+    parser.add_argument("--class-label", default="simple")
     parser.add_argument("--output-dir", required=True, type=Path)
     parser.add_argument("--examples", type=int, default=12)
     parser.add_argument("--db-floor", type=float, default=-50.0)
@@ -45,15 +48,34 @@ def main():
     if args.examples < 2:
         raise ValueError("--examples must be at least 2")
 
-    with args.manifest.open(newline="", encoding="utf-8") as handle:
-        simple_rows = [row for row in csv.DictReader(handle) if row["class"] == "simple"]
-    simple_rows.sort(key=lambda row: float(row["complexity_score"]))
-    if len(simple_rows) < args.examples:
-        raise ValueError("Not enough Simple samples in manifest")
+    if bool(args.manifest) == bool(args.candidate_dir):
+        raise ValueError("Specify exactly one of --manifest or --candidate-dir")
+    if args.manifest:
+        with args.manifest.open(newline="", encoding="utf-8") as handle:
+            sample_rows = [row for row in csv.DictReader(handle) if row["class"] == args.class_label]
+    else:
+        sample_rows = []
+        for path in sorted(args.candidate_dir.glob("candidate_*.h5")):
+            if not Path(f"{path}.done").is_file():
+                continue
+            z_cm, spectral_db = read_map(path, np.linspace(200.0, 2500.0, 251))
+            with h5py.File(path, "r") as handle:
+                params = handle["benchmark_params"]
+                get = lambda name: float(np.asarray(params[name][()]).item())
+                row = {"class": args.class_label, "source_path": str(path),
+                       "energy_uj": get("energy_uj"), "tau_fs": get("tau_fs"),
+                       "pressure_bar": get("pressure_bar"), "diameter_um": get("diameter_um")}
+            normalized = (spectral_db + 50.0) / 50.0
+            row["complexity_score"] = float(np.mean(np.abs(np.diff(normalized, axis=0))) +
+                                            np.mean(np.abs(np.diff(normalized, axis=1))))
+            sample_rows.append(row)
+    sample_rows.sort(key=lambda row: float(row["complexity_score"]))
+    if len(sample_rows) < args.examples:
+        raise ValueError(f"Not enough {args.class_label} samples")
 
-    positions = np.linspace(0, len(simple_rows) - 1, args.examples, dtype=int)
-    selected = [simple_rows[index] for index in positions]
-    quantiles = positions / (len(simple_rows) - 1) * 100.0
+    positions = np.linspace(0, len(sample_rows) - 1, args.examples, dtype=int)
+    selected = [sample_rows[index] for index in positions]
+    quantiles = positions / (len(sample_rows) - 1) * 100.0
     target_lambda = np.linspace(200.0, 2500.0, 251)
     columns = 4
     rows = int(np.ceil(args.examples / columns))
@@ -78,23 +100,23 @@ def main():
         axis.set_visible(False)
     colorbar = figure.colorbar(image, ax=axes[:len(selected)], shrink=0.9, pad=0.01)
     colorbar.set_label("Relative spectral power (dB)")
-    figure.suptitle("Simple benchmark targets across complexity quantiles", fontsize=14)
+    figure.suptitle(f"{args.class_label.capitalize()} benchmark targets across complexity quantiles", fontsize=14)
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
-    figure.savefig(args.output_dir / "simple_target_quantile_gallery.png", dpi=220)
+    figure.savefig(args.output_dir / f"{args.class_label}_target_quantile_gallery.png", dpi=220)
     plt.close(figure)
 
-    scores = np.array([float(row["complexity_score"]) for row in simple_rows])
+    scores = np.array([float(row["complexity_score"]) for row in sample_rows])
     figure, axis = plt.subplots(figsize=(7.5, 4.5), constrained_layout=True)
     axis.hist(scores, bins=40, color="#2c7fb8", alpha=0.85)
     axis.scatter([float(row["complexity_score"]) for row in selected],
                  np.zeros(len(selected)), color="#d95f0e", label="gallery selections", zorder=3)
     axis.set(xlabel="Benchmark complexity score", ylabel="Simple-sample count",
-             title="Simple benchmark complexity distribution")
+             title=f"{args.class_label.capitalize()} benchmark complexity distribution")
     axis.legend()
-    figure.savefig(args.output_dir / "simple_complexity_distribution.png", dpi=220)
+    figure.savefig(args.output_dir / f"{args.class_label}_complexity_distribution.png", dpi=220)
 
-    with (args.output_dir / "simple_target_gallery_manifest.csv").open("w", newline="", encoding="utf-8") as handle:
+    with (args.output_dir / f"{args.class_label}_target_gallery_manifest.csv").open("w", newline="", encoding="utf-8") as handle:
         fields = ["quantile_percent", *selected[0].keys()]
         writer = csv.DictWriter(handle, fieldnames=fields)
         writer.writeheader()

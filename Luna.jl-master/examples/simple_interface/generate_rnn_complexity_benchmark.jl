@@ -49,7 +49,7 @@ function parse_args()
         end
         i += 1
     end
-    values["class"] in ("simple", "complex") || error("--class must be simple or complex")
+    values["class"] in ("simple", "moderate", "complex") || error("--class must be simple, moderate, or complex")
     return values
 end
 
@@ -59,7 +59,7 @@ Generate controlled AR-HCF RNN benchmark candidates.
 
 Usage:
   julia --project=../.. generate_rnn_complexity_benchmark.jl \\
-    --class simple|complex --output-dir DIR [--count 1600]
+    --class simple|moderate|complex --output-dir DIR [--count 1600]
 
 Every trajectory uses Ar, t=0.65 um, L=5 cm, 200 saved z planes,
 plasma=true, raman=false, loss=true, and shotnoise=false.
@@ -69,6 +69,12 @@ end
 function ranges_for(label)
     if label == "simple"
         return (energy=(0.3, 1.0), tau=(25.0, 50.0), pressure=(0.5, 15.0), diameter=(30.0, 50.0))
+    end
+    if label == "moderate"
+        # Deliberately retain smooth, weak-to-moderate nonlinear broadening.
+        # This bridges the nearly stationary Simple set and the strongly
+        # restructuring Complex set without targeting ionisation-dominated maps.
+        return (energy=(0.7, 1.6), tau=(15.0, 35.0), pressure=(5.0, 25.0), diameter=(22.0, 40.0))
     end
     # A numerically feasible, still strongly nonlinear subset.  The original
     # extreme proposal (2--3 uJ, 5--12 fs, 20--50 bar, 10--20 um) routinely
@@ -175,7 +181,7 @@ function main()
             pressure = sample_uniform(rng, ranges.pressure)
             diameter = sample_uniform(rng, ranges.diameter)
             initial_field = initial_field_strength(energy, tau, pressure, diameter)
-            if label == "complex" && initial_field > INITIAL_FIELD_SAFETY_RATIO * PPT_FIELD_LIMIT
+            if label != "simple" && initial_field > INITIAL_FIELD_SAFETY_RATIO * PPT_FIELD_LIMIT
                 println(@sprintf("[%d] attempt %d rejected by initial field %.4e V/m", index, attempt, initial_field))
                 continue
             end

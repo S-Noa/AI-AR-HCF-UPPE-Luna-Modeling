@@ -18,13 +18,18 @@ done
 
 source "$repo/scripts/cloud_luna_env.sh"
 cd "$AI_AR_HCF_REPO/rnnnonlinear-master/rnnnonlinear-master"
-python3 prepare_rnn_complexity_benchmark.py \
-  --simple-dir "$root/simple_candidates" \
-  --complex-dir "$root/complex_candidates" \
-  --output-dir "$processed" \
-  --keep-per-class 1300 --train-evolutions 1250 --test-evolutions 50 \
-  --z-points 200 --lambda-points 251 \
-  --log-file "$logdir/prepare_benchmark.log"
+if [ ! -f "$processed/simple_original_dbm.mat" ] || [ ! -f "$processed/complex_original_dbm.mat" ] || \
+   [ ! -f "$processed/simple_per_sample_minmax.mat" ] || [ ! -f "$processed/complex_per_sample_minmax.mat" ]; then
+  python3 prepare_rnn_complexity_benchmark.py \
+    --simple-dir "$root/simple_candidates" \
+    --complex-dir "$root/complex_candidates" \
+    --output-dir "$processed" \
+    --keep-per-class 1300 --train-evolutions 1250 --test-evolutions 50 \
+    --z-points 200 --lambda-points 251 \
+    --log-file "$logdir/prepare_benchmark.log"
+else
+  echo "[$(date -Is)] benchmark MAT files already exist; skipping export"
+fi
 
 # PyTorch follows the 50 + 30 epoch reference schedule.  Keras is kept in the
 # isolated TensorFlow-1 environment created for the original-code comparison.

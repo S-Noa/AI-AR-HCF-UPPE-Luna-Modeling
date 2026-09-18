@@ -80,3 +80,7 @@ Do not modify files yet.
 - Store the generated maps with the experiment output and report their paths in
   the experiment notes. A result without a spectral-evolution visualization is
   not considered visually validated.
+- Synchronize every visualization artifact needed for review, reporting, or
+  later comparison from the cloud to the local project workspace. Record both
+  the cloud source directory and local destination in the experiment notes;
+  cloud-only figures are not considered delivered visual results.

@@ -55,6 +55,10 @@ After editing:
 - Prefer `nohup ... > path/to/job.nohup.log 2>&1 &` and record the PID plus log path in the reply.
 - Use foreground cloud commands only for quick read-only checks such as `tail`, `ls`, `ps`, `df`, `--help`, or short smoke commands that are known to finish in under one minute.
 - For long jobs, always expose a `tail -f` command so progress can be checked without keeping the SSH session attached.
+- Treat the canonical cloud checkout at `/mnt/AI-AR-HCF-UPPE-Luna-Modeling`
+  as disposable and Git-synchronized code only. Keep data, models, logs, and
+  visualizations under `/mnt/Luna.jl-master`; do not make source edits directly
+  in a long-lived cloud worktree without promptly committing and pushing them.
 
 ## Review habit
 

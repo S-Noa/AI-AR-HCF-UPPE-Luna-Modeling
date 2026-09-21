@@ -108,3 +108,16 @@ Binary presentation and submission files are intentionally not tracked in normal
 - The z=5 cm raw4 Banded MLP completed and passed its forward gate: test `Final_LogPower_R2=0.9855`, `UV_LogPower_R2=0.9647`, UV-power-proxy Spearman `0.9804`, and total-power-proxy Spearman `0.9444`. This is a stronger basis for a constrained early-UV RL task than the saturated 50 cm UV-fraction route. Before training that policy, replace fraction reward with absolute UV power and retain output-power/feasibility constraints.
 - The next z=5 cm RL smoke uses `constrained_uv_power`: maximize predicted log UV power while penalizing total output power below the training-set 25th-percentile floor. It retains the predicted UV fraction only as a diagnostic, not as the optimization target. Direct Luna validation now accepts `--length-cm 5`, so every candidate produces a physical `S(z,lambda)` map over the same 0--5 cm task rather than a 50 cm propagation that is sliced afterwards.
 - The z=5 cm constrained-RL smoke and direct Luna validation completed on 2026-09-16: all 10 candidates were runnable. Luna UV fractions were `0.0300--0.0623`, compared with surrogate values `0.0191--0.0329`; energy transmission was `6.09e-7--8.44e-7` and maximum electron density was `2.78e17--3.22e19 m^-3`. The result no longer exhibits the near-zero-transmission UV-fraction degeneracy of the 50 cm run, but it is only a single-seed smoke and requires multi-seed and clean-UV spectral-shape assessment before any design claim.
+
+## Completion update (2026-09-21)
+
+- The controlled Simple/Complex benchmark matrix is complete: 24 Keras/PyTorch
+  runs across two target representations and three seeds. The aggregate result
+  confirms stable Simple full rollouts and representation-sensitive Complex
+  rollouts, while also exposing a Keras/PyTorch gap that requires source-level
+  alignment before making a framework-independent conclusion.
+- Moderate candidate generation completed at `1600/1600`; the final gallery is
+  synchronized locally. Do not train on it until a middle-complexity selection
+  interval is fixed.
+- The cloud canonical checkout is clean and validated after the 2026-09-21
+  recovery. Future cloud source changes must flow through local GitHub main.

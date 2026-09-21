@@ -128,3 +128,20 @@ Binary presentation and submission files are intentionally not tracked in normal
   per-step diagnostic figures for all twelve Complex model configurations.
 - The cloud canonical checkout is clean and validated after the 2026-09-21
   recovery. Future cloud source changes must flow through local GitHub main.
+
+## Validation-autoregressive benchmark restart (2026-09-21)
+
+- The in-progress Moderate v1 pipeline was stopped intentionally. Its partial
+  outputs and the completed Simple/Complex v1 matrix remain historical
+  diagnostics only, because PyTorch selected checkpoints on a test block while
+  Keras reported its final epoch.
+- The replacement v2 matrix uses the same 1,300 selected trajectories per
+  class, but reserves `1,150` for fitting, `100` whole trajectories for
+  validation-autoregressive checkpoint selection, and `50` untouched
+  trajectories for final test reporting. It covers Simple, Complex, and
+  Moderate; two representations; Keras and PyTorch; and seeds `123/456/789`
+  (`36` runs total).
+- Cloud outputs are isolated under
+  `/mnt/Luna.jl-master/rnn_complexity_benchmark/results_validation_ar_v2`.
+  The v2 visualization package will be exported only from completed v2 result
+  directories and then synchronized locally.

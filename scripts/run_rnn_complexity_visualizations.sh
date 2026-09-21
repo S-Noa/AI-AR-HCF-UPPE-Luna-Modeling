@@ -3,7 +3,8 @@ set -euo pipefail
 
 repo="/mnt/AI-AR-HCF-UPPE-Luna-Modeling"
 root="/mnt/Luna.jl-master/rnn_complexity_benchmark"
-output="$root/visualizations"
+results_root="${BENCHMARK_RESULTS_ROOT:-$root/results}"
+output="${BENCHMARK_VISUAL_OUTPUT:-$root/visualizations}"
 
 source "$repo/scripts/cloud_luna_env.sh"
 mkdir -p "$output"
@@ -48,7 +49,7 @@ for class in "${classes[@]}"; do
     for representation in original_dbm per_sample_minmax; do
       for seed in 123 456 789; do
         name="${framework}_${class}_${representation}_seed${seed}"
-        result="$root/results/$name"
+        result="$results_root/$name"
         [ -f "$result/COMPLETED" ] || continue
         label="per-sample min-max target space"
         [ "$representation" = "original_dbm" ] && label="original dBm target space"

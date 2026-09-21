@@ -231,6 +231,24 @@ Use this file as the lightweight memory for model and data experiments. Keep eac
   protocol reserves 100 whole trajectories from the training block for both
   frameworks and reports only the untouched 50-trajectory test block.
 
+### Validation-autoregressive v2 benchmark (started 2026-09-21)
+
+- The partial Moderate v1 pipeline was intentionally interrupted before its
+  result could be used. V1 results are retained for debugging but excluded from
+  the final framework/complexity comparison.
+- New runner: `scripts/run_rnn_complexity_validation_ar_v2.sh`.
+- Data allocation per class: first `1,150` trajectories for fitting, next
+  `100` for validation-autoregressive model selection, final `50` for the
+  untouched test report. The original MAT files, physical selected samples,
+  model architecture, optimizer schedule, and random seeds are otherwise
+  unchanged.
+- Matrix: `Simple/Complex/Moderate x original_dbm/per_sample_minmax x
+  Keras/PyTorch x seed(123,456,789)`, for `36` serial runs.
+- Output root:
+  `/mnt/Luna.jl-master/rnn_complexity_benchmark/results_validation_ar_v2`.
+  A result is valid for v2 comparison only after its `COMPLETED` marker and
+  final test metrics exist.
+
 The raw4 scaler uses a legacy mixed-unit schema: energy is J, duration is s,
 pressure is bar, and diameter is already um. The corrected candidate export
 records canonical SI fields (`energy_j`, `tau_s`, `diameter_m`) and

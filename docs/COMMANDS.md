@@ -1294,6 +1294,33 @@ nohup bash scripts/run_rnn_complexity_benchmark_pipeline.sh \
 echo $! > /mnt/Luna.jl-master/rnn_complexity_benchmark/pipeline_launcher.pid
 ```
 
+### Restart the controlled benchmark with validation-autoregressive selection
+
+Use this instead of the historical v1 runner. It does not overwrite v1
+results. Checkpoints are chosen using `100` validation trajectories, while the
+last `50` trajectories remain an untouched test block.
+
+```bash
+source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
+cd "$AI_AR_HCF_REPO"
+nohup bash scripts/run_rnn_complexity_validation_ar_v2.sh \
+  > /mnt/Luna.jl-master/rnn_complexity_benchmark/logs/validation_ar_v2.nohup.log 2>&1 < /dev/null &
+echo $! > /mnt/Luna.jl-master/rnn_complexity_benchmark/validation_ar_v2_launcher.pid
+```
+
+After the v2 runner has completed, export the matching frequency-domain
+target/stepwise/autoregressive/final-spectrum figures to a separate directory:
+
+```bash
+source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
+cd "$AI_AR_HCF_REPO"
+BENCHMARK_RESULTS_ROOT=/mnt/Luna.jl-master/rnn_complexity_benchmark/results_validation_ar_v2 \
+BENCHMARK_VISUAL_OUTPUT=/mnt/Luna.jl-master/rnn_complexity_benchmark/visualizations_validation_ar_v2 \
+nohup bash scripts/run_rnn_complexity_visualizations.sh \
+  > /mnt/Luna.jl-master/rnn_complexity_benchmark/logs/validation_ar_v2_visualizations.nohup.log 2>&1 < /dev/null &
+echo $! > /mnt/Luna.jl-master/rnn_complexity_benchmark/visualizations_validation_ar_v2/launcher.pid
+```
+
 ### Analyze completed raw4 RL Luna validations
 
 ```bash

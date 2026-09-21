@@ -1321,6 +1321,16 @@ nohup bash scripts/run_rnn_complexity_visualizations.sh \
 echo $! > /mnt/Luna.jl-master/rnn_complexity_benchmark/visualizations_validation_ar_v2/launcher.pid
 ```
 
+The preferred workflow starts the lightweight watcher at the same time as v2
+training. It waits for the completion marker, then exports the same figures in
+relative dB without competing with training:
+
+```bash
+nohup bash "$AI_AR_HCF_REPO/scripts/wait_and_visualize_rnn_complexity_validation_ar_v2.sh" \
+  > /mnt/Luna.jl-master/rnn_complexity_benchmark/logs/validation_ar_v2_visualization_watcher.nohup.log 2>&1 < /dev/null &
+echo $! > /mnt/Luna.jl-master/rnn_complexity_benchmark/validation_ar_v2_visualization_watcher_launcher.pid
+```
+
 ### Analyze completed raw4 RL Luna validations
 
 ```bash

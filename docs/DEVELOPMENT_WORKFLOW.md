@@ -84,6 +84,10 @@ Do not modify files yet.
 - Store the generated maps with the experiment output and report their paths in
   the experiment notes. A result without a spectral-evolution visualization is
   not considered visually validated.
+- For normalized spectral targets, publishable spectral-evolution and
+  final-spectrum figures must be displayed after inverse transformation on a
+  relative-dB scale. Keep target-space plots only for debugging; they must be
+  labelled explicitly and must not be interpreted as physical intensity.
 - Synchronize every visualization artifact needed for review, reporting, or
   later comparison from the cloud to the local project workspace. Record both
   the cloud source directory and local destination in the experiment notes;

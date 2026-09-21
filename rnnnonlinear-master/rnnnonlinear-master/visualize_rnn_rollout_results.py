@@ -32,6 +32,24 @@ def parse_args():
     parser.add_argument("--wavelength-points", type=int, default=None)
     parser.add_argument("--sample-indices", nargs="+", type=int, default=[0, 1, 2, 3])
     parser.add_argument("--normalization-label", default="target space")
+    parser.add_argument(
+        "--target-representation",
+        choices=("target", "original_dbm", "per_sample_minmax"),
+        default="target",
+        help="Training target representation. Select a non-target value to display maps in relative dB.",
+    )
+    parser.add_argument(
+        "--raw-power-mat",
+        default=None,
+        help="Raw-power MAT matching per_sample_minmax data; required to invert that representation for display.",
+    )
+    parser.add_argument(
+        "--test-offset",
+        type=int,
+        default=0,
+        help="First test trajectory index in --raw-power-mat.",
+    )
+    parser.add_argument("--relative-db-floor", type=float, default=-50.0)
     parser.add_argument("--summary-csv", default=None, help="Optional CSV file to append one summary row")
     return parser.parse_args()
 
@@ -123,36 +141,89 @@ def compute_metrics(step_true, step_pred, auto_true, auto_pred):
     return metrics, per_step_r2, per_step_rmse, sample_r2
 
 
-def plot_map_triplet(out_path, title, truth, pred, normalization_label):
-    err = np.abs(pred - truth)
+def build_display_transform(args, test_evo):
+    """Return a per-trajectory target-space to relative-dB conversion."""
+    if args.target_representation == "target":
+        return None, args.normalization_label
+    if args.target_representation == "original_dbm":
+        return (
+            lambda values, _: np.clip(55.0 * (values - 1.0), args.relative_db_floor, 0.0),
+            "relative spectral power (dB; original global reference)",
+        )
+    if not args.raw_power_mat:
+        raise ValueError("--raw-power-mat is required for per_sample_minmax relative-dB display")
+    raw_mat = sio.loadmat(args.raw_power_mat)
+    if "data" not in raw_mat:
+        raise KeyError(f"{args.raw_power_mat} must contain raw-power field 'data'")
+    raw = np.asarray(raw_mat["data"], dtype=np.float64)
+    if raw.ndim != 3 or raw.shape[0] < args.test_offset + test_evo:
+        raise ValueError(
+            "Raw-power data does not contain the requested test trajectories: "
+            f"shape={raw.shape}, offset={args.test_offset}, test_evo={test_evo}"
+        )
+    log_raw = np.log10(np.maximum(raw[args.test_offset:args.test_offset + test_evo], 1e-30))
+    sample_lo = np.min(log_raw, axis=(1, 2))
+    sample_hi = np.max(log_raw, axis=(1, 2))
+    span = np.maximum(sample_hi - sample_lo, 1e-12)
+
+    def minmax_to_relative_db(values, sample_index):
+        # Per-sample min-max stores (log10(P) - lo) / (hi - lo).  Referencing
+        # the reconstructed map to its own hi gives a physically readable
+        # relative power scale without affecting the R2 target space.
+        relative_db = 10.0 * (np.asarray(values) - 1.0) * span[sample_index]
+        return np.clip(relative_db, args.relative_db_floor, 0.0)
+
+    return minmax_to_relative_db, "relative spectral power (dB; per-trajectory peak)"
+
+
+def plot_map_triplet(out_path, title, truth, pred, display_transform, sample_index, display_label, db_floor):
+    if display_transform is None:
+        truth_display, pred_display = truth, pred
+        err = np.abs(pred - truth)
+        data_limits = (0.0, max(float(np.nanmax(truth)), float(np.nanmax(pred)), 1e-6))
+        data_colorbar = "Target value"
+        error_colorbar = "Absolute target error"
+    else:
+        truth_display = display_transform(truth, sample_index)
+        pred_display = display_transform(pred, sample_index)
+        err = np.abs(pred_display - truth_display)
+        data_limits = (db_floor, 0.0)
+        data_colorbar = "Relative spectral power (dB)"
+        error_colorbar = "Absolute error (dB)"
     fig, axes = plt.subplots(1, 3, figsize=(12.5, 3.8), constrained_layout=True)
-    maps = [truth.T, pred.T, err.T]
+    maps = [truth_display.T, pred_display.T, err.T]
     titles = ["Ground truth", "Prediction", "|Error|"]
-    cmaps = ["viridis", "viridis", "magma"]
-    vmax = max(float(np.nanmax(truth)), float(np.nanmax(pred)), 1e-6)
+    cmaps = ["turbo", "turbo", "magma"] if display_transform else ["viridis", "viridis", "magma"]
     for ax, image, sub_title, cmap in zip(axes, maps, titles, cmaps):
         if sub_title == "|Error|":
             im = ax.imshow(image, origin="lower", aspect="auto", cmap=cmap)
+            colorbar_label = error_colorbar
         else:
-            im = ax.imshow(image, origin="lower", aspect="auto", cmap=cmap, vmin=0.0, vmax=vmax)
+            im = ax.imshow(image, origin="lower", aspect="auto", cmap=cmap,
+                           vmin=data_limits[0], vmax=data_limits[1])
+            colorbar_label = data_colorbar
         ax.set_title(sub_title)
         ax.set_xlabel("Propagation step")
         ax.set_ylabel("Wavelength index")
-        fig.colorbar(im, ax=ax, shrink=0.85)
-    fig.suptitle(f"{title} ({normalization_label})")
+        fig.colorbar(im, ax=ax, shrink=0.85, label=colorbar_label)
+    fig.suptitle(f"{title} ({display_label})")
     fig.savefig(out_path, dpi=220)
     plt.close(fig)
 
 
-def plot_final_spectrum(out_path, title, truth, step_pred, auto_pred):
+def plot_final_spectrum(out_path, title, truth, step_pred, auto_pred, display_transform, sample_index, display_label):
+    if display_transform is not None:
+        truth = display_transform(truth, sample_index)
+        step_pred = display_transform(step_pred, sample_index)
+        auto_pred = display_transform(auto_pred, sample_index)
     x = np.arange(truth.size)
     plt.figure(figsize=(7.5, 4.2))
     plt.plot(x, truth, label="Ground truth", linewidth=1.8)
     plt.plot(x, step_pred, label="Stepwise", linewidth=1.4)
     plt.plot(x, auto_pred, label="Autoregressive", linewidth=1.4)
     plt.xlabel("Wavelength index")
-    plt.ylabel("Target value")
-    plt.title(title)
+    plt.ylabel("Relative spectral power (dB)" if display_transform else "Target value")
+    plt.title(f"{title} ({display_label})")
     plt.legend()
     plt.tight_layout()
     plt.savefig(out_path, dpi=220)
@@ -250,6 +321,7 @@ def main():
     auto_pred = reshape_evolution(auto_pred_flat, args.test_evo, args.steps)
     step_true_map = reshape_evolution(step_true, args.test_evo, args.steps)
     step_pred_map = reshape_evolution(step_pred, args.test_evo, args.steps)
+    display_transform, display_label = build_display_transform(args, args.test_evo)
 
     metrics, per_step_r2, per_step_rmse, sample_r2 = compute_metrics(
         step_true, step_pred, auto_true, auto_pred
@@ -262,6 +334,8 @@ def main():
         "steps": args.steps,
         "window_size": args.window_size,
         "normalization_label": args.normalization_label,
+        "display_label": display_label,
+        "target_representation": args.target_representation,
         **metrics,
     }
     with (out_dir / "metrics.json").open("w", encoding="utf-8") as f:
@@ -279,14 +353,20 @@ def main():
             f"{args.experiment_name} sample {idx}: stepwise",
             step_true_map[idx],
             step_pred_map[idx],
-            args.normalization_label,
+            display_transform,
+            idx,
+            display_label,
+            args.relative_db_floor,
         )
         plot_map_triplet(
             out_dir / f"sample_{idx:03d}_autoregressive_evolution.png",
             f"{args.experiment_name} sample {idx}: autoregressive",
             auto_true[idx],
             auto_pred[idx],
-            args.normalization_label,
+            display_transform,
+            idx,
+            display_label,
+            args.relative_db_floor,
         )
         plot_final_spectrum(
             out_dir / f"sample_{idx:03d}_final_spectrum.png",
@@ -294,6 +374,9 @@ def main():
             auto_true[idx, -1],
             step_pred_map[idx, -1],
             auto_pred[idx, -1],
+            display_transform,
+            idx,
+            display_label,
         )
     print(json.dumps(payload, indent=2))
 

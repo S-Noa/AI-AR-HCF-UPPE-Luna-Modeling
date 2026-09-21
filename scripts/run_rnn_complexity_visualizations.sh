@@ -53,12 +53,17 @@ for class in "${classes[@]}"; do
         [ -f "$result/COMPLETED" ] || continue
         label="per-sample min-max target space"
         [ "$representation" = "original_dbm" ] && label="original dBm target space"
+        display_args=(--target-representation "$representation" --relative-db-floor -50)
+        if [ "$representation" = "per_sample_minmax" ]; then
+          display_args+=(--raw-power-mat "$root/processed/${class}_raw_power.mat" --test-offset 1250)
+        fi
         python3 visualize_rnn_rollout_results.py \
           --stepwise-mat "$result/stepwise_predictions.mat" \
           --autoregressive-mat "$result/autoregressive_predictions.mat" \
           --output-dir "$output/$name" --experiment-name "$name" \
           --test-evo 50 --steps 200 --wavelength-points 251 \
-          --normalization-label "$label" --sample-indices 0 1 2 3
+          --normalization-label "$label" --sample-indices 0 1 2 3 \
+          "${display_args[@]}"
       done
     done
   done

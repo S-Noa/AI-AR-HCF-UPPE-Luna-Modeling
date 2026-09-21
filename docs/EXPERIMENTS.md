@@ -225,6 +225,11 @@ Use this file as the lightweight memory for model and data experiments. Keep eac
   local destination `rnn_visual_diagnostics/rnn_complexity_benchmark/visualizations/`.
   The local Complex package contains 234 files across the gallery, twelve model
   result directories, and the representative target panel.
+- Checkpoint-selection caveat: the completed Simple/Complex v1 table is not a
+  framework-fair model-selection comparison. PyTorch used periodic test-block
+  autoregressive R2, whereas Keras used the final epoch. The next validation-AR
+  protocol reserves 100 whole trajectories from the training block for both
+  frameworks and reports only the untouched 50-trajectory test block.
 
 The raw4 scaler uses a legacy mixed-unit schema: energy is J, duration is s,
 pressure is bar, and diameter is already um. The corrected candidate export

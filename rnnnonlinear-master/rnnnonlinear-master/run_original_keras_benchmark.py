@@ -2,6 +2,7 @@
 """Run the unmodified RNNnonlinear Keras components on a benchmark .mat file."""
 
 import argparse
+import copy
 import json
 import os
 
@@ -44,6 +45,26 @@ def fixed_horizon_metrics(model, truth, window_size, horizons):
     return output
 
 
+def evaluate_autoregressive_r2(model, x_data, y_data, evolutions, steps, window_size, n_grid):
+    """Evaluate full rollout R2 on complete held-out propagation trajectories."""
+    prediction = pred_evo(model, x_data, evolutions, steps, window_size, n_grid)
+    return float(r2_score(y_data.reshape(-1), prediction.reshape(-1)))
+
+
+def split_validation_evolutions(x_train, y_train, validation_evolutions, steps):
+    """Hold out complete trajectories, never individual z windows, for selection."""
+    if validation_evolutions <= 0:
+        return x_train, y_train, None, None
+    windows_per_evolution = steps - 1
+    validation_windows = validation_evolutions * windows_per_evolution
+    if validation_windows >= x_train.shape[0]:
+        raise ValueError("--validation-evolutions leaves no training trajectories")
+    return (
+        x_train[:-validation_windows], y_train[:-validation_windows],
+        x_train[-validation_windows:], y_train[-validation_windows:],
+    )
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--data", required=True)
@@ -57,6 +78,17 @@ def main():
     parser.add_argument("--epochs-stage1", type=int, default=50)
     parser.add_argument("--epochs-stage2", type=int, default=30)
     parser.add_argument(
+        "--validation-evolutions", type=int, default=0,
+        help=(
+            "Number of complete trajectories held out from the training block for "
+            "autoregressive checkpoint selection. Zero preserves the legacy final-epoch behavior."
+        ),
+    )
+    parser.add_argument(
+        "--checkpoint-every", type=int, default=5,
+        help="Evaluate validation autoregressive R2 every N epochs; also evaluates epoch 1 and the final epoch.",
+    )
+    parser.add_argument(
         "--eval-fixed-horizons", type=int, nargs="+", default=list(range(1, 11)),
         help="Exact recursive horizons to evaluate from true histories (default: 1 through 10).",
     )
@@ -67,10 +99,61 @@ def main():
         args.data, args.train_evolutions, args.test_evolutions, args.steps,
         args.window_size, args.normalization
     )
+    if args.validation_evolutions < 0:
+        raise ValueError("--validation-evolutions must be non-negative")
+    if args.checkpoint_every < 1:
+        raise ValueError("--checkpoint-every must be at least one")
+    x_fit, y_fit, x_validation, y_validation = split_validation_evolutions(
+        x_train, y_train, args.validation_evolutions, args.steps
+    )
+    fit_validation_data = (x_validation, y_validation) if x_validation is not None else None
+
     model = make_RNN_model(args.window_size, i_x)
-    history1 = model.fit(x_train, y_train, epochs=args.epochs_stage1, validation_split=0.1, verbose=2)
-    model = update_RNN_model(model)
-    history2 = model.fit(x_train, y_train, epochs=args.epochs_stage2, validation_split=0.1, verbose=2)
+    total_epochs = args.epochs_stage1 + args.epochs_stage2
+    best_validation_r2 = -float("inf")
+    best_epoch = 0
+    best_weights = None
+    selection_history = []
+
+    for epoch in range(1, total_epochs + 1):
+        if epoch == args.epochs_stage1 + 1:
+            model = update_RNN_model(model)
+        history = model.fit(
+            x_fit, y_fit, epochs=1, validation_data=fit_validation_data,
+            verbose=2, shuffle=True,
+        )
+        should_select = (
+            x_validation is not None
+            and (epoch == 1 or epoch % args.checkpoint_every == 0 or epoch == total_epochs)
+        )
+        validation_r2 = None
+        if should_select:
+            validation_r2 = evaluate_autoregressive_r2(
+                model, x_validation, y_validation, args.validation_evolutions,
+                args.steps, args.window_size, i_x,
+            )
+            if np.isfinite(validation_r2) and validation_r2 > best_validation_r2:
+                best_validation_r2 = validation_r2
+                best_epoch = epoch
+                best_weights = copy.deepcopy(model.get_weights())
+                model.save_weights(
+                    os.path.join(args.output_dir, "best_validation_autoregressive_weights.h5")
+                )
+        selection_history.append({
+            "epoch": epoch,
+            "stage": 1 if epoch <= args.epochs_stage1 else 2,
+            "loss": float(history.history["loss"][-1]),
+            "val_loss": float(history.history.get("val_loss", [np.nan])[-1]),
+            "validation_autoregressive_r2": validation_r2,
+        })
+
+    if best_weights is not None:
+        model.set_weights(best_weights)
+        selected_model = "best_validation_autoregressive"
+        selected_epoch = best_epoch
+    else:
+        selected_model = "final_epoch_legacy"
+        selected_epoch = total_epochs
     stepwise = model.predict_proba(x_test)
     autoreg = pred_evo(model, x_test, args.test_evolutions, args.steps, args.window_size, i_x)
     evo_size = args.steps - 1
@@ -89,6 +172,12 @@ def main():
         "seed": args.seed,
         "steps": args.steps,
         "window_size": args.window_size,
+        "validation_evolutions": args.validation_evolutions,
+        "checkpoint_every": args.checkpoint_every,
+        "selection_metric": "validation_autoregressive_r2" if x_validation is not None else "final_epoch_legacy",
+        "selected_model": selected_model,
+        "selected_epoch": selected_epoch,
+        "best_validation_autoregressive_r2": best_validation_r2 if best_weights is not None else None,
         "fixed_horizon_metrics": fixed_horizon,
     }
     model.save(os.path.join(args.output_dir, "keras_model.h5"))
@@ -99,7 +188,7 @@ def main():
     with open(os.path.join(args.output_dir, "fixed_horizon_metrics.json"), "w", encoding="utf-8") as handle:
         json.dump(fixed_horizon, handle, indent=2)
     with open(os.path.join(args.output_dir, "history.json"), "w", encoding="utf-8") as handle:
-        json.dump({"stage1": history1.history, "stage2": history2.history}, handle, indent=2)
+        json.dump({"epochs": selection_history}, handle, indent=2)
     print(json.dumps(metrics, indent=2))
 
 

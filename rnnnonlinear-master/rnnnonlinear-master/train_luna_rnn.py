@@ -116,6 +116,13 @@ def parse_args():
     parser.add_argument("--test-fraction", type=float, default=0.1)
     parser.add_argument("--train-evolutions", type=int, default=None,
                         help="Optional explicit number of training evolutions, matching RNNnonlinear train_evo")
+    parser.add_argument(
+        "--validation-evolutions", type=int, default=0,
+        help=(
+            "Complete training-block trajectories reserved for checkpoint selection. "
+            "Zero preserves legacy selection on the test block."
+        ),
+    )
     parser.add_argument("--test-evolutions", type=int, default=None,
                         help="Optional explicit number of test evolutions, matching RNNnonlinear test_evo")
     parser.add_argument("--output-activation", choices=["sigmoid", "identity"], default="sigmoid")
@@ -825,29 +832,35 @@ def main():
     if explicit_split:
         if args.train_evolutions is None or args.test_evolutions is None:
             raise ValueError("--train-evolutions and --test-evolutions must be provided together")
-        n_train = int(args.train_evolutions)
+        n_train_total = int(args.train_evolutions)
         n_test = int(args.test_evolutions)
-        if n_train < 1 or n_test < 1:
+        if n_train_total < 1 or n_test < 1:
             raise ValueError("--train-evolutions and --test-evolutions must be positive")
-        if n_train + n_test > n_evo:
+        if n_train_total + n_test > n_evo:
             raise ValueError(
-                f"Requested train+test evolutions {n_train + n_test} exceeds available {n_evo}"
+                f"Requested train+test evolutions {n_train_total + n_test} exceeds available {n_evo}"
             )
-        data = data[:n_train + n_test]
+        data = data[:n_train_total + n_test]
         if features is not None:
-            features = features[:n_train + n_test]
+            features = features[:n_train_total + n_test]
     else:
         n_test = max(1, int(round(n_evo * args.test_fraction)))
-        n_train = n_evo - n_test
+        n_train_total = n_evo - n_test
+    n_validation = int(args.validation_evolutions)
+    if n_validation < 0 or n_validation >= n_train_total:
+        raise ValueError("--validation-evolutions must be non-negative and smaller than training evolutions")
+    n_train = n_train_total - n_validation
     if n_train <= 0:
         raise ValueError("Need at least one training evolution")
     data_train = data[:n_train]
-    data_test = data[n_train:]
+    data_validation = data[n_train:n_train + n_validation]
+    data_test = data[n_train + n_validation:n_train + n_validation + n_test]
     features_train = features[:n_train] if features is not None else None
-    features_test = features[n_train:] if features is not None else None
+    features_validation = features[n_train:n_train + n_validation] if features is not None else None
+    features_test = features[n_train + n_validation:n_train + n_validation + n_test] if features is not None else None
     logging.info(
-        "Split evolutions: train=%d test=%d split=%s window_size=%d output_activation=%s training_mode=%s preset=%s",
-        n_train, n_test, "explicit" if explicit_split else "test_fraction",
+        "Split evolutions: train=%d validation=%d test=%d split=%s window_size=%d output_activation=%s training_mode=%s preset=%s",
+        n_train, n_validation, n_test, "explicit" if explicit_split else "test_fraction",
         args.window_size, args.output_activation, args.training_mode, args.training_preset
     )
 
@@ -861,19 +874,23 @@ def main():
         features=features_test, z_norm=z_norm,
         use_features=use_features, use_z=use_z
     )
-    periodic_stepwise_n = min(int(args.eval_stepwise_samples), n_test)
-    periodic_test_ds = OneStepEvolutionDataset(
-        data_test[:periodic_stepwise_n], args.window_size,
-        features=features_test[:periodic_stepwise_n] if features_test is not None else None,
+    selection_data = data_validation if n_validation > 0 else data_test
+    selection_features = features_validation if n_validation > 0 else features_test
+    selection_label = "validation" if n_validation > 0 else "test_legacy"
+    selection_evolutions = n_validation if n_validation > 0 else n_test
+    periodic_stepwise_n = min(int(args.eval_stepwise_samples), selection_evolutions)
+    periodic_selection_ds = OneStepEvolutionDataset(
+        selection_data[:periodic_stepwise_n], args.window_size,
+        features=selection_features[:periodic_stepwise_n] if selection_features is not None else None,
         z_norm=z_norm, use_features=use_features, use_z=use_z
     )
-    test_loader = DataLoader(periodic_test_ds, batch_size=args.batch_size, shuffle=False)
+    selection_loader = DataLoader(periodic_selection_ds, batch_size=args.batch_size, shuffle=False)
     final_test_loader = DataLoader(test_one_step_ds, batch_size=args.batch_size, shuffle=False)
     if args.training_mode == "one_step":
         train_loader = DataLoader(train_one_step_ds, batch_size=args.batch_size, shuffle=True)
         rollout_loader = None
-        logging.info("Using lazy one-step dataset: train=%d windows, periodic test=%d/%d evolutions",
-                     len(train_one_step_ds), periodic_stepwise_n, n_test)
+        logging.info("Using lazy one-step dataset: train=%d windows, periodic %s=%d/%d evolutions",
+                     len(train_one_step_ds), selection_label, periodic_stepwise_n, selection_evolutions)
     else:
         train_loader = None
         rollout_loader = DataLoader(
@@ -909,7 +926,9 @@ def main():
     config.update({
         "data_shape": list(data.shape),
         "train_evolutions": int(n_train),
+        "validation_evolutions": int(n_validation),
         "test_evolutions": int(n_test),
+        "checkpoint_selection_split": selection_label,
         "split_mode": "explicit" if explicit_split else "test_fraction",
         "device": str(device),
         "log_file": log_file,
@@ -980,7 +999,7 @@ def main():
             current_rollout_steps = 0
 
         stepwise = evaluate_stepwise(
-            model, test_loader, device, return_predictions=False,
+            model, selection_loader, device, return_predictions=False,
             prediction_target=args.prediction_target
         )
         run_autoregressive_eval = (
@@ -990,11 +1009,11 @@ def main():
         autoregressive = None
         if run_autoregressive_eval:
             autoregressive = predict_autoregressive(
-                model, data_test, args.window_size, device,
+                model, selection_data, args.window_size, device,
                 batch_size=args.autoregressive_eval_batch_size,
                 max_evolutions=args.eval_autoregressive_samples,
                 return_predictions=False,
-                features_test=features_test,
+                features_test=selection_features,
                 z_norm=z_norm,
                 use_features=use_features,
                 use_z=use_z,
@@ -1012,11 +1031,11 @@ def main():
             "train_rollout_mse": train_summary["rollout_mse"],
             "feedback_probability": train_summary["feedback_probability"],
             "current_rollout_steps": int(current_rollout_steps),
-            "test_stepwise_mse": stepwise["mse"],
-            "test_stepwise_r2": stepwise["r2"],
-            "test_autoregressive_mse": autoregressive["mse"] if autoregressive else None,
-            "test_autoregressive_r2": autoregressive["r2"] if autoregressive else None,
-            "test_autoregressive_final_r2": autoregressive["final_r2"] if autoregressive else None,
+            "selection_stepwise_mse": stepwise["mse"],
+            "selection_stepwise_r2": stepwise["r2"],
+            "selection_autoregressive_mse": autoregressive["mse"] if autoregressive else None,
+            "selection_autoregressive_r2": autoregressive["r2"] if autoregressive else None,
+            "selection_autoregressive_final_r2": autoregressive["final_r2"] if autoregressive else None,
             "learning_rate": optimizer.param_groups[0]["lr"],
             "epoch_sec": epoch_duration,
             "elapsed_sec": elapsed,
@@ -1082,7 +1101,7 @@ def main():
                 "rollout_steps=%d | feedback=%.3f | stepwise_r2=%.6f%s | lr=%.3g | elapsed=%.1fs | eta=%.1fs",
                 epoch + 1, args.epochs, args.training_mode,
                 row["train_mse"], row["train_one_step_mse"], row["train_rollout_mse"],
-                row["current_rollout_steps"], row["feedback_probability"], row["test_stepwise_r2"], autoreg_msg,
+                row["current_rollout_steps"], row["feedback_probability"], row["selection_stepwise_r2"], autoreg_msg,
                 row["learning_rate"], row["elapsed_sec"], row["eta_sec"]
             )
         if (
@@ -1174,7 +1193,7 @@ def main():
         "best_autoregressive_r2_subset": best_autoregressive_r2 if best_autoregressive_state is not None else None,
         "best_autoregressive_epoch": best_autoregressive_epoch,
         "periodic_stepwise_evolutions": periodic_stepwise_n,
-        "periodic_autoregressive_evolutions": min(int(args.eval_autoregressive_samples), n_test),
+        "periodic_autoregressive_evolutions": min(int(args.eval_autoregressive_samples), selection_evolutions),
         "stepwise_mse": stepwise["mse"],
         "stepwise_r2": stepwise["r2"],
         "autoregressive_mse": autoreg["mse"],

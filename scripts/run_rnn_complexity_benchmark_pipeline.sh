@@ -45,7 +45,8 @@ for class in simple complex; do
           --training-mode open_source_legacy --conditioning none \
           --window-size 10 --hidden 250 --lstm-implementation keras_compatible \
           --learning-rate 1e-4 --stage2-learning-rate 1e-5 --stage2-start-epoch 51 \
-          --epochs 80 --batch-size 128 --train-evolutions 1250 --test-evolutions 50 \
+          --epochs 80 --batch-size 128 --train-evolutions 1250 --validation-evolutions 100 --test-evolutions 50 \
+          --eval-autoregressive-samples 100 \
           --seed "$seed" --eval-fixed-horizons 1 2 3 4 5 6 7 8 9 10 --fixed-horizon-origins both \
           --log-file "$pytorch_out/train.log"
         touch "$pytorch_out/COMPLETED"
@@ -60,7 +61,8 @@ for class in simple complex; do
           "$data_root/rnn_original_code_env/miniconda3/envs/rnn_tf1/bin/python" \
           "$repo/rnnnonlinear-master/rnnnonlinear-master/run_original_keras_benchmark.py" \
           --data "$mat" --output-dir "$keras_out" \
-          --normalization none --seed "$seed" --train-evolutions 1250 --test-evolutions 50 \
+          --normalization none --seed "$seed" --train-evolutions 1250 --validation-evolutions 100 --test-evolutions 50 \
+          --checkpoint-every 5 \
           --steps 200 --window-size 10 --epochs-stage1 50 --epochs-stage2 30 \
           --eval-fixed-horizons 1 2 3 4 5 6 7 8 9 10 \
           > "$keras_out/train.log" 2>&1

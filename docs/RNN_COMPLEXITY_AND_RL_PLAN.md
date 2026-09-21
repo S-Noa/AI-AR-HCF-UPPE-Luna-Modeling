@@ -46,4 +46,15 @@ targets, Keras and Keras-compatible PyTorch implementations, and seeds
 frequency-domain visualization template. Complex runs are re-exported through
 the same batch to remove the prior Simple-only visualization gap.
 
+## Validation-autoregressive checkpoint protocol (2026-09-21)
+
+The first completed Simple/Complex matrix is retained as a historical baseline,
+but its checkpoint selection was not symmetric: PyTorch selected the highest
+periodic autoregressive score on the test block, while Keras reported the final
+80-epoch model. New benchmark runs reserve 100 complete trajectories from the
+1,250-trajectory training block: 1,150 trajectories fit the weights, 100 select
+the checkpoint by full validation autoregressive R2, and the 50 test trajectories
+are touched only once for final reporting. Both frameworks evaluate validation
+autoregression every five epochs, also at epoch 1 and the final epoch.
+
 The first RL task optimizes only energy, tau, pressure, and diameter within the t0p6 support. It requires a raw4 global-log forward model and uses a linear-power UV-fraction reward. Derived features are never directly optimized. SAC, random search, differential evolution, and constrained raw4 gradient optimization share parameter bounds and require Luna validation.

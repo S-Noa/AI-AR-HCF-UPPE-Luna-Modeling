@@ -106,6 +106,10 @@ RMSprop 和 `50 + 30` epoch 调度。下表是 3 个随机 seed 的均值 +/- �
   框架/实现差异：两边虽对齐了主要网络和优化设置，仍需检查 LSTM 单元实现、
   batch/window 构造、checkpoint 选择时机及 rollout 细节。不能只把 Keras 的失败
   归因于物理复杂度。
+- 额外的选模限制：当前表中的 PyTorch 是按周期性 autoregressive R2 选择 checkpoint，
+  而 Keras 是固定 80 epoch 的最后模型。因此 v1 表格不能作为严格框架公平比较。下一版
+  将从 1250 条训练块中划出 100 条完整验证轨迹，两边都按 validation autoregressive R2
+  选模，最终只在独立的 50 条 test 轨迹上报告结果。
 
 ### 4.4 固定 1--10 step 诊断
 

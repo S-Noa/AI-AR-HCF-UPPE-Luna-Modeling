@@ -23,9 +23,10 @@ were only stale project documentation and an older `.gitignore`.
 - `scripts/cloud_luna_env.sh` now derives the checkout root from its own path.
 - Source it before Python or Julia work so CoreX Python packages and GPU
   libraries are available.
-- The clean Julia project was instantiated with the shared depot. PyCall uses
-  the preserved legacy Keras Python environment at
-  `/mnt/Luna.jl-master/rnn_original_code_env/miniconda3/envs/rnn_tf1/bin/python`.
+- The clean Julia project was instantiated with the shared depot. PyCall is
+  bound to `/usr/local/bin/python3`, matching the Python 3.10 CoreX packages
+  exposed by `cloud_luna_env.sh`; do not bind it to the legacy Python 3.7 Keras
+  environment.
 - The previous one-thread FFTW wisdom file was archived with the recovery
   backup and rebuilt after an import failure.
 

@@ -146,6 +146,31 @@ def build_display_transform(args, test_evo):
     if args.target_representation == "target":
         return None, args.normalization_label
     if args.target_representation == "original_dbm":
+        if args.raw_power_mat:
+            raw_mat = sio.loadmat(args.raw_power_mat)
+            if "data" not in raw_mat:
+                raise KeyError(f"{args.raw_power_mat} must contain raw-power field 'data'")
+            raw = np.asarray(raw_mat["data"], dtype=np.float64)
+            if raw.ndim != 3 or raw.shape[0] < args.test_offset + test_evo:
+                raise ValueError(
+                    "Raw-power data does not contain the requested test trajectories: "
+                    f"shape={raw.shape}, offset={args.test_offset}, test_evo={test_evo}"
+                )
+            global_peak = float(np.max(raw))
+            sample_peak = np.max(raw[args.test_offset:args.test_offset + test_evo], axis=(1, 2))
+            peak_relative_to_global_db = 10.0 * np.log10(
+                np.maximum(sample_peak / max(global_peak, 1e-30), 1e-30)
+            )
+
+            def original_dbm_to_sample_relative_db(values, sample_index):
+                global_relative_db = 55.0 * (np.asarray(values) - 1.0)
+                return np.clip(
+                    global_relative_db - peak_relative_to_global_db[sample_index],
+                    args.relative_db_floor,
+                    0.0,
+                )
+
+            return original_dbm_to_sample_relative_db, "relative spectral power (dB; per-trajectory peak)"
         return (
             lambda values, _: np.clip(55.0 * (values - 1.0), args.relative_db_floor, 0.0),
             "relative spectral power (dB; original global reference)",

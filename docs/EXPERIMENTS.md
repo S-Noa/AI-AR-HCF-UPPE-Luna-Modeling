@@ -220,6 +220,11 @@ Use this file as the lightweight memory for model and data experiments. Keep eac
 - Complex visualization may run independently while the Moderate matrix is
   training. Moderate visualization is deferred until its own result directories
   contain completion markers.
+- Complex visualization completed and was synchronized on 2026-09-21:
+  cloud source `/mnt/Luna.jl-master/rnn_complexity_benchmark/visualizations/`;
+  local destination `rnn_visual_diagnostics/rnn_complexity_benchmark/visualizations/`.
+  The local Complex package contains 234 files across the gallery, twelve model
+  result directories, and the representative target panel.
 
 The raw4 scaler uses a legacy mixed-unit schema: energy is J, duration is s,
 pressure is bar, and diameter is already um. The corrected candidate export

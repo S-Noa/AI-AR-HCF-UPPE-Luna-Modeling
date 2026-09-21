@@ -122,5 +122,9 @@ Binary presentation and submission files are intentionally not tracked in normal
 - The next benchmark deliverables are the Moderate `2 x 2 x 3` matrix and a
   uniform visual export for every Complex and completed Moderate Keras/PyTorch
   result. Scalar metrics alone do not complete evaluation.
+- The Complex uniform visualization package is complete and synchronized to
+  `rnn_visual_diagnostics/rnn_complexity_benchmark/visualizations/` locally.
+  It contains the target, stepwise, autoregressive, final-spectrum, and
+  per-step diagnostic figures for all twelve Complex model configurations.
 - The cloud canonical checkout is clean and validated after the 2026-09-21
   recovery. Future cloud source changes must flow through local GitHub main.

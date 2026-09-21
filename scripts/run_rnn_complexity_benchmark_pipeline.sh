@@ -46,7 +46,7 @@ for class in simple complex; do
           --window-size 10 --hidden 250 --lstm-implementation keras_compatible \
           --learning-rate 1e-4 --stage2-learning-rate 1e-5 --stage2-start-epoch 51 \
           --epochs 80 --batch-size 128 --train-evolutions 1250 --test-evolutions 50 \
-          --seed "$seed" --eval-fixed-horizons 1 2 3 4 --fixed-horizon-origins both \
+          --seed "$seed" --eval-fixed-horizons 1 2 3 4 5 6 7 8 9 10 --fixed-horizon-origins both \
           --log-file "$pytorch_out/train.log"
         touch "$pytorch_out/COMPLETED"
       fi
@@ -62,6 +62,7 @@ for class in simple complex; do
           --data "$mat" --output-dir "$keras_out" \
           --normalization none --seed "$seed" --train-evolutions 1250 --test-evolutions 50 \
           --steps 200 --window-size 10 --epochs-stage1 50 --epochs-stage2 30 \
+          --eval-fixed-horizons 1 2 3 4 5 6 7 8 9 10 \
           > "$keras_out/train.log" 2>&1
         touch "$keras_out/COMPLETED"
       fi

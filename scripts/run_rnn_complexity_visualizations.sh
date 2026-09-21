@@ -11,23 +11,43 @@ echo "$$" > "$output/runner.pid"
 trap 'rm -f "$output/runner.pid"' EXIT
 
 cd "$repo/rnnnonlinear-master/rnnnonlinear-master"
+classes=(simple complex)
+if [ -f "$root/processed/moderate_original_dbm.mat" ]; then
+  classes+=(moderate)
+fi
+
 python3 visualize_rnn_complexity_targets.py \
   --manifest "$root/processed/manifest.csv" \
-  --output "$output/representative_simple_complex_targets.png"
-python3 visualize_rnn_simple_gallery.py \
-  --manifest "$root/processed/manifest.csv" \
-  --output-dir "$output/simple_gallery" --examples 12
+  --output "$output/representative_complexity_targets.png" \
+  --classes "${classes[@]}"
 
-result="$root/results/pytorch_simple_original_dbm_seed123"
-if [ -f "$result/COMPLETED" ]; then
-  python3 visualize_rnn_rollout_results.py \
-    --stepwise-mat "$result/stepwise_predictions.mat" \
-    --autoregressive-mat "$result/autoregressive_predictions.mat" \
-    --output-dir "$output/pytorch_simple_original_dbm_seed123" \
-    --experiment-name "pytorch_simple_original_dbm_seed123" \
-    --test-evo 50 --steps 200 --wavelength-points 251 \
-    --normalization-label "original dBm target space" \
-    --sample-indices 0 1 2 3
-fi
+for class in "${classes[@]}"; do
+  python3 visualize_rnn_simple_gallery.py \
+    --manifest "$root/processed/manifest.csv" \
+    --class-label "$class" --output-dir "$output/${class}_gallery" --examples 12
+done
+
+# Export the same target/teacher-forced/autoregressive/final-spectrum template
+# for every completed Keras and PyTorch benchmark run.  The fixed target grid
+# is 251 wavelengths by 200 propagation planes for all controlled classes.
+for class in "${classes[@]}"; do
+  for framework in keras pytorch; do
+    for representation in original_dbm per_sample_minmax; do
+      for seed in 123 456 789; do
+        name="${framework}_${class}_${representation}_seed${seed}"
+        result="$root/results/$name"
+        [ -f "$result/COMPLETED" ] || continue
+        label="per-sample min-max target space"
+        [ "$representation" = "original_dbm" ] && label="original dBm target space"
+        python3 visualize_rnn_rollout_results.py \
+          --stepwise-mat "$result/stepwise_predictions.mat" \
+          --autoregressive-mat "$result/autoregressive_predictions.mat" \
+          --output-dir "$output/$name" --experiment-name "$name" \
+          --test-evo 50 --steps 200 --wavelength-points 251 \
+          --normalization-label "$label" --sample-indices 0 1 2 3
+      done
+    done
+  done
+done
 
 touch "$output/COMPLETED"

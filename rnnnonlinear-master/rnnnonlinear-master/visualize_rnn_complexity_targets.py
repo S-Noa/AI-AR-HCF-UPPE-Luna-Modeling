@@ -33,13 +33,17 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--manifest", required=True, type=Path)
     parser.add_argument("--output", required=True, type=Path)
+    parser.add_argument("--classes", nargs="+", default=["simple", "complex"])
     args = parser.parse_args()
     with args.manifest.open(newline="", encoding="utf-8") as handle:
         rows = list(csv.DictReader(handle))
     target_lambda = np.linspace(200.0, 2500.0, 251)
-    fig, axes = plt.subplots(2, 3, figsize=(15, 7), sharex=True, sharey=True, constrained_layout=True)
+    labels = args.classes
+    fig, axes = plt.subplots(len(labels), 3, figsize=(15, 3.5 * len(labels)),
+                             sharex=True, sharey=True, constrained_layout=True)
+    axes = np.asarray(axes).reshape(len(labels), 3)
     image = None
-    for class_index, label in enumerate(("simple", "complex")):
+    for class_index, label in enumerate(labels):
         choices = sorted((row for row in rows if row["class"] == label), key=lambda row: float(row["complexity_score"]))
         for axis, index in zip(axes[class_index], np.linspace(0, len(choices) - 1, 3, dtype=int)):
             row = choices[index]

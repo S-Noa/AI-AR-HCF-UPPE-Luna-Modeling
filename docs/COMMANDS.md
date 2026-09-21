@@ -1137,7 +1137,7 @@ tail -f /mnt/Luna.jl-master/rnn_visual_diagnostics/data_dynamics_comparison.nohu
 test -f /mnt/Luna.jl-master/rnn_visual_diagnostics/data_dynamics_comparison/COMPLETED && echo completed
 ```
 
-## Controlled simple/complex 0--5 cm RNN benchmark
+## Controlled Simple/Complex/Moderate 0--5 cm RNN benchmark
 
 ```bash
 source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
@@ -1152,12 +1152,13 @@ echo $! > /mnt/Luna.jl-master/rnn_complexity_benchmark/launcher.pid
 # resampled if their calculated initial field would exceed the conservative
 # 0.5 x PPT table-limit guard.
 tail -f /mnt/Luna.jl-master/rnn_complexity_benchmark/logs/complex_generation.log
+```
 
 ## Generate the approved Moderate benchmark pool
 
-The Moderate pool is independent of the Simple/Complex comparison. It generates
-1,600 candidates only; do not export or train it until a middle-complexity
-selection interval has been chosen from the final gallery.
+The Moderate pool is independent of the Simple/Complex comparison. The
+documented selection rule ranks the 1,600 candidates by the shared complexity
+score and keeps the central 1,300, excluding the lowest and highest 150.
 
 ```bash
 source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
@@ -1170,7 +1171,27 @@ find /mnt/Luna.jl-master/rnn_complexity_benchmark/moderate_candidates \
   -maxdepth 1 -type f -name 'candidate_*.h5.done' | wc -l
 ```
 
-### Fixed 1--4-step RNN evaluator smoke
+### Run the Moderate matrix and common visual export
+
+```bash
+source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
+cd "$AI_AR_HCF_REPO"
+nohup bash scripts/run_rnn_moderate_benchmark_pipeline.sh \
+  > /mnt/Luna.jl-master/rnn_complexity_benchmark/logs/moderate_benchmark_pipeline.nohup.log \
+  2>&1 < /dev/null &
+echo $! > /mnt/Luna.jl-master/rnn_complexity_benchmark/moderate_benchmark_launcher.pid
+
+tail -f /mnt/Luna.jl-master/rnn_complexity_benchmark/logs/moderate_benchmark_pipeline.nohup.log
+```
+
+The runner requests fixed horizons 1--10 for Keras and PyTorch, then launches
+the common target/stepwise/autoregressive/final-spectrum visualizer. Outputs:
+
+```text
+/mnt/Luna.jl-master/rnn_complexity_benchmark/visualizations/
+```
+
+### Fixed 1--10-step RNN evaluator smoke
 
 ```bash
 source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
@@ -1182,10 +1203,12 @@ nohup python3 train_luna_rnn.py \
   --training-mode open_source_legacy --conditioning none \
   --window-size 10 --hidden 250 --epochs 1 --batch-size 16 \
   --train-evolutions 50 --test-evolutions 10 \
-  --eval-fixed-horizons 1 2 3 4 --fixed-horizon-origins both \
+  --eval-fixed-horizons 1 2 3 4 5 6 7 8 9 10 --fixed-horizon-origins both \
   > /mnt/Luna.jl-master/rnn_earlydense/fixed_horizon_smoke/nohup.log 2>&1 < /dev/null &
 ```
 
+```bash
+source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
 cd "$AI_AR_HCF_REPO/rnnnonlinear-master/rnnnonlinear-master"
 python3 prepare_rnn_complexity_benchmark.py \
   --simple-dir /mnt/Luna.jl-master/rnn_complexity_benchmark/simple_candidates \

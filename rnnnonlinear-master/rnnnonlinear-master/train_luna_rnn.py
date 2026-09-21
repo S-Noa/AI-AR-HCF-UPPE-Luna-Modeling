@@ -175,7 +175,7 @@ def parse_args():
     parser.add_argument("--autoreg-patience", type=int, default=8,
                         help="Number of autoregressive evaluations without improvement before early stopping")
     parser.add_argument("--eval-fixed-horizons", type=int, nargs="*", default=None,
-                        help="Optional exact recursive horizons, e.g. --eval-fixed-horizons 1 2 3 4")
+                        help="Optional exact recursive horizons, e.g. --eval-fixed-horizons 1 2 ... 10")
     parser.add_argument("--fixed-horizon-origins", choices=["all", "zero", "both"], default="both",
                         help="Evaluate fixed horizons from all valid z starts, z=0 only, or both")
     return parser.parse_args()

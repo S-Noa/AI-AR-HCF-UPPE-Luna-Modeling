@@ -85,7 +85,7 @@ Binary presentation and submission files are intentionally not tracked in normal
 ## Controlled 0--5 cm RNN benchmark and RL (2026-09-15)
 
 - A new controlled Luna benchmark will generate simple and complex spectra over 0--5 cm with 200 z planes and 251 wavelength bins. Each class retains 1,250 train and 50 test trajectories, matching the reference SC RNN scale.
-- The PyTorch RNN now includes a Keras-compatible ReLU-LSTM option and fixed 1/2/3/4-step recursive metrics from all starts and z=0.
+- The PyTorch RNN now includes a Keras-compatible ReLU-LSTM option and fixed 1--10-step recursive metrics from all starts and z=0.
 - RL inverse design will use a raw4 t0p6 global-log forward surrogate. Only energy, tau, pressure, and diameter are actions; the existing 15-feature optimizer is not a physically valid RL environment.
 - The controlled complex generator calculates the same initial field strength used by `data_generation.jl`, accepts at most `0.5` of Luna's tabulated PPT ionisation-rate field limit, and resamples failed attempts. This is required because the nominal complex range can exceed the numerical PPT limit; it does not change the accepted benchmark geometry or target complexity ranking.
 - The first extreme complex smoke domain was not viable: every 2--3 uJ, 5--12 fs, 20--50 bar, 10--20 um candidate self-compressed beyond the PPT interpolation range. The benchmark now uses the feasible but still strongly nonlinear subdomain `E=2.0--2.5 uJ`, `tau=10--16 fs`, `p=10--25 bar`, and `d=18--25 um`; complexity is selected from measured maps, not from numerical failures.
@@ -97,8 +97,8 @@ Binary presentation and submission files are intentionally not tracked in normal
 ## Controlled benchmark and RL status update (2026-09-15)
 
 - The controlled `0--5 cm / 200 z / 251 wavelength` benchmark is active on cloud. The Simple candidate pool is complete at `1600/1600`; the Complex pool remains under generation in the PPT-safe strongly nonlinear domain. Dataset ranking, MATLAB export, and Keras/PyTorch training begin only after both pools complete.
-- The Moderate smoke gallery was approved as a useful bridge between the nearly stationary Simple maps and strongly restructuring Complex maps. Its independent full `1600`-candidate cloud generation started on 2026-09-18. It is not yet part of the Simple/Complex training matrix: review the final gallery first, define a middle-complexity selection rule, then export a separate three-class benchmark.
-- The fixed `1/2/3/4` recursive-step evaluator is implemented and smoke-tested. It remains to be applied to every final benchmark checkpoint and the current best Luna short-horizon RNN checkpoint.
+- The Moderate smoke gallery was approved as a useful bridge between the nearly stationary Simple maps and strongly restructuring Complex maps. Its independent full `1600`-candidate generation completed. The selected benchmark keeps the middle 1,300 candidates after shared complexity-score ranking, excluding the lowest/highest 150; the manifest records the selected score range. A dedicated Moderate Keras/PyTorch matrix is ready to run.
+- The fixed `1--10` recursive-step evaluator is implemented. The updated controlled benchmark runners apply it to every new Keras/PyTorch checkpoint.
 - The raw4 Banded-MLP gate passed: `Final_LogPower_R2=0.9831`, `UV_LogPower_R2=0.9585`, and UV-fraction Spearman correlation `0.9619`.
 - Formal SAC seeds `123/456/789` completed. Their first candidate CSV files mislabelled units; the legacy raw4 schema is mixed (`energy` in J, `tau` in s, `pressure` in bar, and `diameter` already in um). Do not execute the original files with Luna. Candidates must be re-exported through `export_rl_candidates.py`, which re-scores frozen agents, clamps UV fraction to `[0,1]`, and writes both canonical SI and simulator-facing units before validation.
 - Current RL is a final-spectrum UV-fraction proof of closure. The first correctly unit-mapped Luna candidate exceeded the PPT table limit after self-compression, so validation now records and skips non-runnable candidates instead of stopping the batch. This confirms that future rewards need a propagated field/ionisation feasibility constraint; temporal clean-UV/dispersive-wave rewards remain deferred until corrected validation results are available.
@@ -117,7 +117,10 @@ Binary presentation and submission files are intentionally not tracked in normal
   rollouts, while also exposing a Keras/PyTorch gap that requires source-level
   alignment before making a framework-independent conclusion.
 - Moderate candidate generation completed at `1600/1600`; the final gallery is
-  synchronized locally. Do not train on it until a middle-complexity selection
-  interval is fixed.
+  synchronized locally. Its documented selection rule keeps the central 1,300
+  candidates after shared-score ranking, excluding the lowest/highest 150.
+- The next benchmark deliverables are the Moderate `2 x 2 x 3` matrix and a
+  uniform visual export for every Complex and completed Moderate Keras/PyTorch
+  result. Scalar metrics alone do not complete evaluation.
 - The cloud canonical checkout is clean and validated after the 2026-09-21
   recovery. Future cloud source changes must flow through local GitHub main.

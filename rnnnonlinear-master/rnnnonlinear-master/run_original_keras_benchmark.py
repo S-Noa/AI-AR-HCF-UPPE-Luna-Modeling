@@ -14,7 +14,7 @@ from make_RNN_model import make_RNN_model, update_RNN_model
 from pred_evo import pred_evo
 
 
-def fixed_horizon_metrics(model, truth, window_size, horizons=(1, 2, 3, 4)):
+def fixed_horizon_metrics(model, truth, window_size, horizons):
     """Exact recursive k-step evaluation from true local histories for Keras."""
     output = {}
     n_evo, n_steps, n_grid = truth.shape
@@ -56,6 +56,10 @@ def main():
     parser.add_argument("--window-size", type=int, default=10)
     parser.add_argument("--epochs-stage1", type=int, default=50)
     parser.add_argument("--epochs-stage2", type=int, default=30)
+    parser.add_argument(
+        "--eval-fixed-horizons", type=int, nargs="+", default=list(range(1, 11)),
+        help="Exact recursive horizons to evaluate from true histories (default: 1 through 10).",
+    )
     args = parser.parse_args()
     os.makedirs(args.output_dir, exist_ok=True)
     np.random.seed(args.seed)
@@ -74,7 +78,9 @@ def main():
     autoreg_pred_map = autoreg.reshape(args.test_evolutions, evo_size, i_x)
     input_profiles = x_test[::evo_size, 0, :]
     truth = np.concatenate([input_profiles[:, None, :], autoreg_true_map], axis=1)
-    fixed_horizon = fixed_horizon_metrics(model, truth, args.window_size)
+    fixed_horizon = fixed_horizon_metrics(
+        model, truth, args.window_size, args.eval_fixed_horizons
+    )
     metrics = {
         "stepwise_r2": float(r2_score(y_test.reshape(-1), stepwise.reshape(-1))),
         "autoregressive_r2": float(r2_score(y_test.reshape(-1), autoreg.reshape(-1))),

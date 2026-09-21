@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Select and export controlled Luna simple/complex RNN benchmark datasets."""
+"""Select and export controlled Luna Simple/Moderate/Complex RNN datasets."""
 
 import argparse
 import csv
@@ -20,6 +20,14 @@ def parse_args():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--simple-dir", required=True)
     parser.add_argument("--complex-dir", required=True)
+    parser.add_argument(
+        "--moderate-dir",
+        default=None,
+        help=(
+            "Optional Moderate candidate pool.  Moderate samples are selected "
+            "from the center of their measured complexity-score distribution."
+        ),
+    )
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--keep-per-class", type=int, default=1300)
     parser.add_argument("--train-evolutions", type=int, default=1250)
@@ -122,8 +130,20 @@ def load_candidates(directory, label, lambda_nm, z_points):
 def select_rows(rows, label, keep):
     if len(rows) < keep:
         raise ValueError(f"{label} has {len(rows)} valid candidates; need {keep}")
-    reverse = label == "complex"
-    return sorted(rows, key=lambda row: row["complexity_score"], reverse=reverse)[:keep]
+    ordered = sorted(rows, key=lambda row: row["complexity_score"])
+    if label == "simple":
+        return ordered[:keep]
+    if label == "complex":
+        # Preserve the historical export order: the hardest retained map is
+        # first, matching the former ``reverse=True`` implementation.
+        return list(reversed(ordered[-keep:]))
+    if label == "moderate":
+        # Keep the central score band rather than the easiest or hardest
+        # candidates.  For 1600 candidates and keep=1300 this excludes the
+        # lowest/highest 150 maps, preserving the physical bridge population.
+        start = (len(ordered) - keep) // 2
+        return ordered[start:start + keep]
+    raise ValueError(f"Unsupported benchmark class: {label}")
 
 
 def ordered_split(rows, train_count, test_count, seed):
@@ -152,16 +172,18 @@ def export_group(rows, label, output_dir, lambda_nm, train_count, test_count, se
     return ordered
 
 
-def write_manifest(rows, path, train_count):
+def write_manifest(groups, path, train_count):
+    rows = [row for _, group in groups for row in group]
     keys = sorted({key for row in rows for key in row if key not in {"power", "z"}})
     with open(path, "w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=["split", "split_index"] + keys)
         writer.writeheader()
-        for index, row in enumerate(rows):
-            payload = {key: row.get(key, "") for key in keys}
-            payload["split"] = "train" if index < train_count else "test"
-            payload["split_index"] = index
-            writer.writerow(payload)
+        for _, group in groups:
+            for index, row in enumerate(group):
+                payload = {key: row.get(key, "") for key in keys}
+                payload["split"] = "train" if index < train_count else "test"
+                payload["split_index"] = index
+                writer.writerow(payload)
 
 
 def main():
@@ -176,8 +198,13 @@ def main():
                                   args.train_evolutions, args.test_evolutions, args.seed)
     complex_ordered = export_group(complex_rows, "complex", args.output_dir, lambda_nm,
                                    args.train_evolutions, args.test_evolutions, args.seed + 1)
-    write_manifest(simple_ordered + complex_ordered, os.path.join(args.output_dir, "manifest.csv"),
-                   args.train_evolutions)
+    groups = [("simple", simple_ordered), ("complex", complex_ordered)]
+    if args.moderate_dir:
+        moderate = load_candidates(args.moderate_dir, "moderate", lambda_nm, args.z_points)
+        moderate_ordered = export_group(moderate, "moderate", args.output_dir, lambda_nm,
+                                        args.train_evolutions, args.test_evolutions, args.seed + 2)
+        groups.append(("moderate", moderate_ordered))
+    write_manifest(groups, os.path.join(args.output_dir, "manifest.csv"), args.train_evolutions)
     summary = {
         "z_points": args.z_points, "z_range_cm": [0.0, 5.0],
         "lambda_points": args.lambda_points, "lambda_range_nm": [args.lambda_min_nm, args.lambda_max_nm],
@@ -185,6 +212,12 @@ def main():
         "simple_score_range": [min(row["complexity_score"] for row in simple_ordered), max(row["complexity_score"] for row in simple_ordered)],
         "complex_score_range": [min(row["complexity_score"] for row in complex_ordered), max(row["complexity_score"] for row in complex_ordered)],
     }
+    if args.moderate_dir:
+        summary["moderate_selection"] = "central complexity-score band"
+        summary["moderate_score_range"] = [
+            min(row["complexity_score"] for row in moderate_ordered),
+            max(row["complexity_score"] for row in moderate_ordered),
+        ]
     with open(os.path.join(args.output_dir, "benchmark_summary.json"), "w", encoding="utf-8") as handle:
         json.dump(summary, handle, indent=2)
     logging.info("Exported benchmark data to %s", args.output_dir)

@@ -184,7 +184,7 @@ Use this file as the lightweight memory for model and data experiments. Keep eac
 - Data: separate 0--5 cm Luna trajectories; 200 z positions, 251 wavelength points, window size 10, and 1,250/50 train/test trajectories per complexity class.
 - Models: original Keras RNNnonlinear components and PyTorch `keras_compatible` ReLU-LSTM with identical RMSprop/MSE 50+30 schedules.
 - Targets: original global -55 dB mapping and external per-sample min-max mapping.
-- Metrics: stepwise, exact 1/2/3/4-step all-start and zero-start R2, full autoregressive R2, final R2, and representative maps.
+- Metrics: stepwise, exact 1--10-step all-start and zero-start R2, full autoregressive R2, final R2, and representative maps.
 - Numerical guard: the complex generator calculates the physical initial field from `Aeff`, energy, and pulse duration, requires it to stay below `0.5` of the PPT lookup limit, and resamples a failed candidate up to 32 times. This prevents invalid PPT interpolation requests from biasing the retained complex set toward failed HDF5 files.
 - The original extreme complex proposal was numerically outside this PPT implementation after self-compression. The active complex sampling domain is `E=2.0--2.5 uJ`, `tau=10--16 fs`, `p=10--25 bar`, and `d=18--25 um`; it is still separated from the simple domain and will be ranked by observed map complexity.
 - Fixed-horizon evaluator smoke: `open_source_legacy`, one epoch, 50 train / 10 test trajectories from `z10cm_51_lambda251`, all-start R2: step 1 `0.7898`, step 2 `0.7784`, step 3 `0.7642`, step 4 `0.7476`. This validates the metric pipeline only; repeat with trained benchmark checkpoints.
@@ -210,10 +210,13 @@ Use this file as the lightweight memory for model and data experiments. Keep eac
 
 - The full Simple/Complex matrix completed: 24 runs across Keras/PyTorch,
   original-dBm/per-sample-min-max targets, and seeds `123/456/789`.
-- Moderate generation completed at `1600/1600` candidates. It remains a
-  candidate pool until a middle-complexity selection rule is documented.
-- The next benchmark deliverable is a uniform visual export for the Complex
-  Keras and PyTorch results; scalar metrics alone do not complete evaluation.
+- Moderate generation completed at `1600/1600` candidates. Training keeps the
+  central 1,300 candidates after shared-score ranking, excluding the
+  lowest/highest 150. The dedicated Moderate Keras/PyTorch three-seed matrix is
+  ready to run.
+- Complex and completed Moderate Keras/PyTorch runs are exported with the same
+  frequency-domain target/stepwise/autoregressive/final-spectrum template used
+  for the Simple PyTorch example.
 
 The raw4 scaler uses a legacy mixed-unit schema: energy is J, duration is s,
 pressure is bar, and diameter is already um. The corrected candidate export

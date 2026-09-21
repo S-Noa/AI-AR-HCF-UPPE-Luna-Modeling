@@ -11,10 +11,23 @@ echo "$$" > "$output/runner.pid"
 trap 'rm -f "$output/runner.pid"' EXIT
 
 cd "$repo/rnnnonlinear-master/rnnnonlinear-master"
-classes=(simple complex)
-if [ -f "$root/processed/moderate_original_dbm.mat" ]; then
-  classes+=(moderate)
+# Set BENCHMARK_CLASSES="complex" (or another space-separated subset) for a
+# staged export.  With no override, export every available class.
+if [ -n "${BENCHMARK_CLASSES:-}" ]; then
+  read -r -a classes <<< "$BENCHMARK_CLASSES"
+else
+  classes=(simple complex)
+  if [ -f "$root/processed/moderate_original_dbm.mat" ]; then
+    classes+=(moderate)
+  fi
 fi
+
+for class in "${classes[@]}"; do
+  if [ ! -f "$root/processed/${class}_original_dbm.mat" ]; then
+    echo "Missing processed data for requested class: $class" >&2
+    exit 1
+  fi
+done
 
 python3 visualize_rnn_complexity_targets.py \
   --manifest "$root/processed/manifest.csv" \

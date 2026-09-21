@@ -217,6 +217,9 @@ Use this file as the lightweight memory for model and data experiments. Keep eac
 - Complex and completed Moderate Keras/PyTorch runs are exported with the same
   frequency-domain target/stepwise/autoregressive/final-spectrum template used
   for the Simple PyTorch example.
+- Complex visualization may run independently while the Moderate matrix is
+  training. Moderate visualization is deferred until its own result directories
+  contain completion markers.
 
 The raw4 scaler uses a legacy mixed-unit schema: energy is J, duration is s,
 pressure is bar, and diameter is already um. The corrected candidate export

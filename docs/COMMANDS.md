@@ -1191,6 +1191,18 @@ the common target/stepwise/autoregressive/final-spectrum visualizer. Outputs:
 /mnt/Luna.jl-master/rnn_complexity_benchmark/visualizations/
 ```
 
+To export only the already-completed Complex result set while Moderate training
+continues, run the visualizer in a separate background process:
+
+```bash
+source /mnt/AI-AR-HCF-UPPE-Luna-Modeling/scripts/cloud_luna_env.sh
+cd "$AI_AR_HCF_REPO"
+nohup env BENCHMARK_CLASSES="complex" bash scripts/run_rnn_complexity_visualizations.sh \
+  > /mnt/Luna.jl-master/rnn_complexity_benchmark/logs/visualize_complex.nohup.log \
+  2>&1 < /dev/null &
+echo $! > /mnt/Luna.jl-master/rnn_complexity_benchmark/complex_visualization_launcher.pid
+```
+
 ### Fixed 1--10-step RNN evaluator smoke
 
 ```bash

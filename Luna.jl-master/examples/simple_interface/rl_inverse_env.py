@@ -6,7 +6,7 @@ from gymnasium import spaces
 
 
 class SurrogateUVEnv(gym.Env):
-    """Continuous parameter-refinement environment backed by a frozen surrogate."""
+    """Continuous parameter-refinement environment backed by a frozen surrogate objective."""
 
     def __init__(self, predictor, lower, upper, max_steps=20, action_scale=0.10, seed=42):
         super().__init__()
@@ -32,7 +32,7 @@ class SurrogateUVEnv(gym.Env):
         self.params = self.rng.uniform(0.0, 1.0, size=4).astype(np.float32)
         self.score = float(self.predictor(self.params[None, :])[0])
         self.step_index = 0
-        return self._observe(), {"uv_fraction": self.score}
+        return self._observe(), {"objective_score": self.score}
 
     def step(self, action):
         action = np.asarray(action, dtype=np.float32)
@@ -44,7 +44,7 @@ class SurrogateUVEnv(gym.Env):
         reward = 100.0 * (self.score - previous) - 0.01 * float(np.dot(action, action))
         if terminated:
             reward += 10.0 * self.score
-        return self._observe(), reward, terminated, False, {"uv_fraction": self.score}
+        return self._observe(), reward, terminated, False, {"objective_score": self.score}
 
     def decoded_parameters(self):
         return self.lower + self.params * (self.upper - self.lower)

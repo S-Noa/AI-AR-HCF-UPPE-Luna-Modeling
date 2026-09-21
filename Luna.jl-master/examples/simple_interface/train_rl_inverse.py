@@ -150,7 +150,7 @@ def main():
         action, _ = agent.predict(obs, deterministic=False)
         obs, _, terminated, _, info = env.step(action)
         if terminated:
-            candidates.append((float(info["uv_fraction"]), env.params.copy(), "sac"))
+            candidates.append((float(info["objective_score"]), env.params.copy(), "sac"))
             obs, _ = env.reset()
 
     random_unit = np.random.default_rng(args.seed).uniform(0.0, 1.0, size=(args.baseline_budget, 4))

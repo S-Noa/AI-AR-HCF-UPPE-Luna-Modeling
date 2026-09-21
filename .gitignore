@@ -4,6 +4,7 @@ __pycache__/
 .pytest_cache/
 .cache/
 .julia/
+.venv_rl/
 *.jl.cov
 *.jl.*.cov
 *.jl.mem
